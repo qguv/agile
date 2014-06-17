@@ -26,8 +26,8 @@ import sys
 from docopt import docopt
 import pathlib
 
-from bs4 import BeautifulSoup as bs
-bs = lambda x: bs(x, "xml")
+from bs4 import BeautifulSoup
+bs = lambda x: BeautifulSoup(x, "xml")
 
 
 def resource(value, resourcesPath):
@@ -40,7 +40,8 @@ def resource(value, resourcesPath):
 
     value.replace("@+", '', 1)
     filename, key = tuple(value.split('/', 1))
-    with open(resourcesPath / (filename + ".xml")) as f:
+    filename = resourcesPath / (filename + ".xml")
+    with filename.open('r') as f:
         rsoup = bs(f).find("resources")
 
     return rsoup.find(name=key).string
@@ -156,8 +157,9 @@ if __name__ == "__main__":
         resourcesPath = pathlib.Path(args["VALUES"])
 
     files = [ f for f in layoutPath.iterdir() if f.is_file() ]
-    for f in files:
-        s = bs(f)
+    for filename in files:
+        with filename.open('r') as f:
+            s = bs(f)
 
     if args["-l"]:
         f.close()
