@@ -93,12 +93,17 @@ class LinearLayout(Layout):
 
 
 class RelativeLayout(Layout):
-    pass
+
+    @classmethod
+    def fromSoup(cls, parent, soup, resourcesPath):
+        raise NotImplementedError
 
 
 class TableLayout(Layout):
-    pass
 
+    @classmethod
+    def fromSoup(cls, parent, soup, resourcesPath):
+        raise NotImplementedError
 
 class TableRow:
 
@@ -106,9 +111,8 @@ class TableRow:
         self.children = children
 
     @classmethod
-    def fromSoup(cls):
+    def fromSoup(cls, parent, soup, resourcesPath):
         raise NotImplementedError
-
 
 class AndroidObject:
 
