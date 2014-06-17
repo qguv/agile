@@ -23,12 +23,18 @@ agile is written by Quint Guvernator and licensed by the GPLv3.
 VERSION = "0.1.0"
 
 import sys
-from bs4 import BeautifulSoup as bs
 from docopt import docopt
 import pathlib
 
+from bs4 import BeautifulSoup as bs
+bs = lambda x: bs(x, "xml")
 
-def resource(value, resourcesPath)
+
+def resource(value, resourcesPath):
+    '''Finds the value of a property in an external resources file if a
+    reference to it exists, otherwise just retursn the plain 'ol value.'''
+    assert not value.startswith("@+id")
+
     if not value.startswith("@+"):
         return value
 
@@ -37,12 +43,14 @@ def resource(value, resourcesPath)
     with open(resourcesPath / (filename + ".xml")) as f:
         rsoup = bs(f).find("resources")
 
-    toReturn = rsoup.find(name=key).string
-
-    return toReturn
+    return rsoup.find(name=key).string
 
 
 def inheritable(value, parent, getFn):
+    '''Handles parent inheritance of attribute values. value is the XML
+    attribute value, parent is the object's parent, and getFn accesses the
+    relevant attribute when given the parent as an argument.'''
+
     if value in ("match_parent", "fill_parent"):
         return getFn(parent)
     else:
@@ -51,11 +59,26 @@ def inheritable(value, parent, getFn):
 
 class Layout:
 
-    def __init__(self, parent, height, width, orientation, gravity=None, subGravity=None, children):
+    '''One of three Android layouts: LinearLayout, RelativeLayout, TableLayout.'''
+
+    def __init__(self, parent, height, width, orientation, children, gravity=None, subGravity=None):
         self.height = inheritable(height, parent, lambda x: x.height)
         self.width = inheritable(width, parent, lambda x: x.width)
         self.orientation = orientation
         self.children = children
+
+    @staticmethod
+    def fromSoup(parent, soup, resourcesPath):
+        dispatch = {
+            "LinearLayout": LinearLayout,
+            "TabularLayout": TabularLayout,
+            "RelativeLayout": RelativeLayout,
+        }
+        cls = dispatch[soup.name]
+        return cls.fromSoup(parent, soup, resourcesPath)
+
+
+class LinearLayout(Layout):
 
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
@@ -64,11 +87,35 @@ class Layout:
         width = soup["android:layout_width"]
         # TODO
 
-        new = cls(id, parent, height, width, orientation, gravity, subGravity, children)
+        new = cls(id, parent, height, width, orientation, children, gravity, subGravity)
         return new
 
 
-class Clickable:
+class RelativeLayout(Layout):
+    pass
+
+
+class TableLayout(Layout):
+    pass
+
+
+class TableRow:
+
+    def __init__(self, children):
+        self.children = children
+
+    @classmethod
+    def fromSoup(cls):
+        raise NotImplementedError
+
+
+class AndroidObject:
+
+    '''A widget/view that goes inside a Layout.'''
+    pass
+
+
+class Clickable(AndroidObject):
 
     def __init__(self, id, parent, height, width, text="", gravity=None):
         self.id = id
@@ -91,4 +138,26 @@ class Clickable:
 
 if __name__ == "__main__":
     args = docopt(__doc__, version=VERSION)
-    layoutPath = args["RES_LAYOUT_PATH"]
+
+    if args["-v"]:
+        log = print
+    elif args["-l"]:
+        f = open(args["LOGFILE"], "a")
+        log = lambda x: print(x, file=f)
+    else:
+        log = lambda x: None
+
+    layoutPath = pathlib.Path(args["LAYOUTS"])
+    resourcesPath = args["VALUES"]
+    if resourcesPath is None:
+        log("Warning: no VALUES directory specified. Attempting to do without it.")
+        resourcesPath = None
+    else:
+        resourcesPath = pathlib.Path(args["VALUES"])
+
+    files = [ f for f in layoutPath.iterdir() if f.is_file() ]
+    for f in files:
+        s = bs(f)
+
+    if args["-l"]:
+        f.close()
