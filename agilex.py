@@ -62,6 +62,8 @@ class AndroidView:
 
     '''An android Layout or Object.'''
 
+    self.height = self.width = None
+
     @staticmethod
     def fromSoup(parent, soup, resourcesPath):
         if soup.name.endswith("Layout"):
@@ -92,6 +94,8 @@ class AndroidLayout(AndroidView):
 
 
 class LinearLayout(AndroidLayout):
+
+    self.children = None
 
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
