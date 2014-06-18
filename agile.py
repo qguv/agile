@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""agile, an Android Graphical Interface LExer.
+"""agile, the Android Graphical Interface LExer
 
 Usage:
   agile.py [-v | -l LOGFILE] LAYOUTS [VALUES]
@@ -58,7 +58,19 @@ def inheritable(value, parent, getFn):
         return value
 
 
-class Layout:
+class AndroidView:
+
+    '''An android Layout or Object.'''
+
+    @staticmethod
+    def fromSoup(parent, soup, resourcesPath):
+        if soup.name.endswith("Layout"):
+            cls = Layout
+        else:
+            cls = AndroidObject
+
+
+class AndroidLayout(AndroidView):
 
     '''One of three Android layouts: LinearLayout, RelativeLayout, TableLayout.'''
 
@@ -79,33 +91,35 @@ class Layout:
         return cls.fromSoup(parent, soup, resourcesPath)
 
 
-class LinearLayout(Layout):
+class LinearLayout(AndroidLayout):
 
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
-        id = soup["android:id"]
-        height = soup["android:layout_height"]
-        width = soup["android:layout_width"]
+        self.id = soup["android:id"]
+        self.height = soup["android:layout_height"]
+        self.width = soup["android:layout_width"]
+        self.children = [ AndroidView.fromSoup(kid) for kid in soup.children ]
         # TODO
 
         new = cls(id, parent, height, width, orientation, children, gravity, subGravity)
         return new
 
 
-class RelativeLayout(Layout):
+class RelativeLayout(AndroidLayout):
 
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
         raise NotImplementedError
 
 
-class TableLayout(Layout):
+class TableLayout(AndroidLayout):
 
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
         raise NotImplementedError
 
-class TableRow:
+
+class TableRow(AndroidLayout):
 
     def __init__(self, children):
         self.children = children
@@ -114,7 +128,8 @@ class TableRow:
     def fromSoup(cls, parent, soup, resourcesPath):
         raise NotImplementedError
 
-class AndroidObject:
+
+class AndroidObject(AndroidView):
 
     '''A widget/view that goes inside a Layout.'''
     pass
@@ -135,11 +150,12 @@ class Clickable(AndroidObject):
         id = soup["android:id"]
         height = soup["android:layout_height"]
         width = soup["android:layout_height"]
-        text = self.resource(soup["android:text"], resourcesPath)
-        gravity = soup["android:gravity"]
+        text = self.resource(soup.get("android:text", None), resourcesPath)
+        gravity = soup.get("android:gravity", None)
 
         new = cls(id, parent, height, width, text, gravity)
         return new
+
 
 if __name__ == "__main__":
     args = docopt(__doc__, version=VERSION)
@@ -164,6 +180,11 @@ if __name__ == "__main__":
     for filename in files:
         with filename.open('r') as f:
             s = bs(f)
+        try:
+            l = AndroidLayout.fromSoup(s)
+            l.
+        except NotImplementedError:
+            continue
 
     if args["-l"]:
         f.close()
