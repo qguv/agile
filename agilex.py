@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-"""agile, the Android Graphical Interface LExer
+"""agilex, the Android Graphical Interface LEXer
 
 Usage:
-  agile.py [-v | -l LOGFILE] LAYOUTS [VALUES]
-  agile.py (-h | --help | help)
-  agile.py --version
+  agilex.py [-v | -l LOGFILE] LAYOUTS [VALUES]
+  agilex.py (-h | --help | help)
+  agilex.py --version
 
 Arguments:
   LAYOUTS     Path to res/layouts.
@@ -17,7 +17,7 @@ Options:
   -h --help   Show this screen.
   --version   Display version.
 
-agile is written by Quint Guvernator and licensed by the GPLv3.
+agilex is written by Quint Guvernator and licensed by the GPLv3.
 """
 
 VERSION = "0.1.0"
