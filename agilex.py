@@ -16,15 +16,14 @@ Options:
   -v          Increase verbosity.
   -h --help   Show this screen.
   --version   Display version.
-
-agilex is written by Quint Guvernator and licensed by the GPLv3.
-"""
+agilex is written by Quint Guvernator and licensed by the GPLv3."""
 
 VERSION = "0.1.0"
 
 import sys
 from docopt import docopt
 import pathlib
+import statistics
 
 from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
@@ -62,7 +61,8 @@ class AndroidView:
 
     '''An android Layout or Object.'''
 
-    self.height = self.width = None
+    def __init__(self):
+        self.height = self.width = None
 
     @staticmethod
     def fromSoup(parent, soup, resourcesPath):
@@ -95,7 +95,8 @@ class AndroidLayout(AndroidView):
 
 class LinearLayout(AndroidLayout):
 
-    self.children = None
+    def __init__(self):
+        self.children = None
 
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
@@ -139,7 +140,7 @@ class AndroidObject(AndroidView):
     pass
 
 
-class Clickable(AndroidObject):
+class Button(AndroidObject):
 
     def __init__(self, id, parent, height, width, text="", gravity=None):
         self.id = id
@@ -161,6 +162,10 @@ class Clickable(AndroidObject):
         return new
 
 
+def countButtons(soup):
+    '''Given soup of an XML file, count how many buttons are defined.'''
+    return len(soup("Button"))
+
 if __name__ == "__main__":
     args = docopt(__doc__, version=VERSION)
 
@@ -181,14 +186,30 @@ if __name__ == "__main__":
         resourcesPath = pathlib.Path(args["VALUES"])
 
     files = [ f for f in layoutPath.iterdir() if f.is_file() ]
+    buttonCount = dict()
     for filename in files:
         with filename.open('r') as f:
             s = bs(f)
-        try:
-            l = AndroidLayout.fromSoup(s)
-            l.
-        except NotImplementedError:
-            continue
+        buttonCount[filename.name] = countButtons(s)
+
+    print("Button count per XML file:")
+    print("{:<35}{}".format("filename", "button count"))
+    print("_" * 60 + '\n')
+    for k, v in buttonCount.items():
+        print("{:<35}{}".format(k, v))
+
+    buttonCount = buttonCount.values()
+
+    print("_" * 60 + '\n')
+    print("Average:", statistics.mean(buttonCount))
+    print("Median: ", statistics.median(buttonCount))
+    print("Mode:   ", statistics.mode(buttonCount))
+    print()
+    print("Maximum:", max(buttonCount))
+    print("Minimum:", min(buttonCount))
+    print()
+    print("Pvar:   ", statistics.pvariance(buttonCount))
+    print("StDev:  ", statistics.stdev(buttonCount))
 
     if args["-l"]:
         f.close()
