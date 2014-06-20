@@ -3,7 +3,7 @@
 """agilex, the Android Graphical Interface LEXer
 
 Usage:
-  agilex.py [-v | -l LOGFILE] LAYOUTS [VALUES]
+  agilex.py [-v | -l LOGFILE] [-c CSV] LAYOUTS [VALUES]
   agilex.py (-h | --help | help)
   agilex.py --version
 
@@ -12,6 +12,7 @@ Arguments:
   VALUES      Path to res/values.
 
 Options:
+  -c CSV      Write stats to a CSV file.
   -l LOGFILE  Log output to a file.
   -v          Increase verbosity.
   -h --help   Show this screen.
@@ -24,6 +25,8 @@ import sys
 from docopt import docopt
 import pathlib
 import statistics
+import csv
+import os
 
 from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
@@ -162,9 +165,98 @@ class Button(AndroidObject):
         return new
 
 
-def countButtons(soup):
+def countLayoutButtons(soup):
     '''Given soup of an XML file, count how many buttons are defined.'''
     return len(soup("Button"))
+
+
+def countAppButtons(layoutPath: pathlib.Path) -> list:
+    files = [ f for f in layoutPath.iterdir() if f.is_file() ]
+    buttons = []
+
+    for filename in files:
+        with filename.open('r') as f:
+            s = bs(f)
+        buttons.append(countLayoutButtons(s))
+
+    return buttons
+
+
+def getRating(layoutsPath: pathlib.Path) -> list:
+
+    p = layoutsPath.resolve()
+    root = layoutsPath.parts[0]
+
+    while "rating.txt" not in [ f.name for f in p.iterdir() ]:
+        parent = p.parent
+        if p == parent:
+            raise FileNotFoundError
+        p = parent
+
+    p = p / "rating.txt"
+    out = [0] * 6
+
+    with p.open('r') as f:
+
+        # ratings
+        for i in range(1, 6):
+            out[i] = int(f.readline().strip())
+
+        # checking against total
+        if int(f.readline().strip()) != sum(out):
+            raise ValueError("rating.txt reports wrong total value")
+
+        # average
+        out[0] = f.readline()
+
+    return out
+
+
+def calcButtonStats(buttons: list) -> dict:
+    stats = {
+        "mean": statistics.mean(buttons),
+        "median": statistics.median(buttons),
+        "mode": statistics.mode(buttons),
+        "min": min(buttons),
+        "max": max(buttons),
+        "pvariance": statistics.pvariance(buttons),
+        "stdev": statistics.stdev(buttons),
+    }
+
+    return stats
+
+def writeStats(stats: dict, rating: list, outFile: pathlib.Path) -> None:
+
+    # add ratings to stats
+    for i, r in enumerate(rating):
+        if i == 0:
+            k = "average rating"
+        else:
+            k = "{} star ratings".format(i)
+        stats[k] = r
+
+
+    # add other entries if already in the file
+    entries = []
+    if outFile.exists():
+        with outFile.open('r') as f:
+            r = csv.DictReader(f)
+            entries.extend(list(r))
+        try:
+            os.remove(outFile.as_posix())
+        except OSError as e:
+            print("Error: {} - {}".format(e.filename, str(e)))
+
+    # add current entry
+    entries.append(stats)
+
+    # write 'em all
+    with outFile.open('w') as f:
+        header = list(stats.keys())
+        header.sort()
+        w = csv.DictWriter(f, header)
+        w.writeheader()
+        w.writerows(entries)
 
 if __name__ == "__main__":
     args = docopt(__doc__, version=VERSION)
@@ -185,31 +277,11 @@ if __name__ == "__main__":
     else:
         resourcesPath = pathlib.Path(args["VALUES"])
 
-    files = [ f for f in layoutPath.iterdir() if f.is_file() ]
-    buttonCount = dict()
-    for filename in files:
-        with filename.open('r') as f:
-            s = bs(f)
-        buttonCount[filename.name] = countButtons(s)
-
-    print("Button count per XML file:")
-    print("{:<35}{}".format("filename", "button count"))
-    print("_" * 60 + '\n')
-    for k, v in buttonCount.items():
-        print("{:<35}{}".format(k, v))
-
-    buttonCount = buttonCount.values()
-
-    print("_" * 60 + '\n')
-    print("Average:", statistics.mean(buttonCount))
-    print("Median: ", statistics.median(buttonCount))
-    print("Mode:   ", statistics.mode(buttonCount))
-    print()
-    print("Maximum:", max(buttonCount))
-    print("Minimum:", min(buttonCount))
-    print()
-    print("Pvar:   ", statistics.pvariance(buttonCount))
-    print("StDev:  ", statistics.stdev(buttonCount))
+    if args["-c"]:
+        stats = calcButtonStats(countAppButtons(layoutPath))
+        rating = getRating(layoutPath)
+        outFile = pathlib.Path(args["-c"])
+        writeStats(stats, rating, outFile)
 
     if args["-l"]:
         f.close()
