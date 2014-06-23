@@ -219,8 +219,8 @@ def emptyStats() -> dict:
         "mode": 0,
         "min": 0,
         "max": 0,
-        "pvariance": None,
-        "stdev": None,
+        "pvariance": "NA",
+        "stdev": "NA",
     }
     return stats
 
@@ -239,11 +239,11 @@ def calcButtonStats(buttons: list) -> dict:
 
     stats = {}
 
-    for k, fn in stats.items():
+    for k, fn in statFns.items():
         try:
             stats[k] = fn(buttons)
         except statistics.StatisticsError:
-            stats[k] = None
+            stats[k] = "NA"
 
     return stats
 
