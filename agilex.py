@@ -212,18 +212,41 @@ def getRating(layoutsPath: pathlib.Path) -> list:
     return out
 
 
-def calcButtonStats(buttons: list) -> dict:
+def emptyStats() -> dict:
     stats = {
-        "mean": statistics.mean(buttons),
-        "median": statistics.median(buttons),
-        "mode": statistics.mode(buttons),
-        "min": min(buttons),
-        "max": max(buttons),
-        "pvariance": statistics.pvariance(buttons),
-        "stdev": statistics.stdev(buttons),
+        "mean": 0,
+        "median": 0,
+        "mode": 0,
+        "min": 0,
+        "max": 0,
+        "pvariance": None,
+        "stdev": None,
+    }
+    return stats
+
+
+def calcButtonStats(buttons: list) -> dict:
+
+    statFns = {
+        "mean": statistics.mean,
+        "median": statistics.median,
+        "mode": statistics.mode,
+        "min": min,
+        "max": max,
+        "pvariance": statistics.pvariance,
+        "stdev": statistics.stdev,
     }
 
+    stats = {}
+
+    for k, fn in stats.items():
+        try:
+            stats[k] = fn(buttons)
+        except statistics.StatisticsError:
+            stats[k] = None
+
     return stats
+
 
 def writeStats(stats: dict, rating: list, outFile: pathlib.Path) -> None:
 
@@ -234,7 +257,6 @@ def writeStats(stats: dict, rating: list, outFile: pathlib.Path) -> None:
         else:
             k = "{} star ratings".format(i)
         stats[k] = r
-
 
     # add other entries if already in the file
     entries = []
@@ -278,10 +300,14 @@ if __name__ == "__main__":
         resourcesPath = pathlib.Path(args["VALUES"])
 
     if args["-c"]:
-        stats = calcButtonStats(countAppButtons(layoutPath))
+        buttons = countAppButtons(layoutPath)
+        if len(buttons) != 0:
+            stats = calcButtonStats(buttons)
+        else:
+            stats = emptyStats()
         rating = getRating(layoutPath)
         outFile = pathlib.Path(args["-c"])
         writeStats(stats, rating, outFile)
 
-    if args["-l"]:
-        f.close()
+        if args["-l"]:
+            f.close()
