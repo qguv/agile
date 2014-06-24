@@ -16,7 +16,7 @@ for d in fdroid/*; do
     done
     if [ -n "$LAYOUTS_DIR" ]; then
         echo "\trunning agilex on $LAYOUTS_DIR"
-        python3 ~/dev/agilex/agilex.py -c ~/out.csv "$LAYOUTS_DIR"
+        python3 ~/dev/agilex/agilex.py --no-zero-apps --no-zero-layouts -c ~/out.csv "$LAYOUTS_DIR"
     else
         echo "\tnothing found for $d"
     fi
