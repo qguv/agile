@@ -186,7 +186,10 @@ def countAppButtons(layoutPath: pathlib.Path) -> list:
     return buttons
 
 
-def getRating(layoutsPath: pathlib.Path) -> list:
+def getRating(layoutsPath: pathlib.Path) -> (list, int):
+    '''Gets a rating count and an average rating. The average rating is
+    returned as element [0], and the star counts are returned as their
+    respective elements, 1 to and including 5.'''
 
     p = layoutsPath.resolve()
     root = layoutsPath.parts[0]
@@ -254,13 +257,21 @@ def calcStats(vector: list) -> dict:
 
 def calcRatingStats(ratings: list) -> dict:
 
-    # ignore the average; we'll get our own
+    mean = ratings[0]
     ratings = ratings[1:]
 
     stats = {}
 
     for k, v in calcStats(ratings).items():
+
         label = "rating_{}".format(k)
+
+        if k == "mean":
+        # mean doesn't mean what it's supposed to mean here. we'll replace it
+        # with our own.
+            stats[label] = mean
+            continue
+
         stats[label] = v
 
     # add the plain 'ol ratings
