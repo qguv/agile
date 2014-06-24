@@ -284,7 +284,7 @@ def calcButtonStats(buttons: list) -> dict:
 def writeStats(buttonStats: dict, ratingStats: dict, outFile: pathlib.Path) -> None:
 
     # combine buttonStats and ratingStats
-    stats = dict(chain(buttonStats.items(), buttonStats.items()))
+    stats = dict(chain(buttonStats.items(), ratingStats.items()))
 
     # add other entries if already in the file
     entries = []
