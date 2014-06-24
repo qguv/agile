@@ -3,7 +3,7 @@
 """agilex, the Android Graphical Interface LEXer
 
 Usage:
-  agilex.py [-v | -l LOGFILE] [-c CSV] LAYOUTS [VALUES]
+  agilex.py [options] LAYOUTS [VALUES]
   agilex.py (-h | --help | help)
   agilex.py --version
 
@@ -12,11 +12,14 @@ Arguments:
   VALUES      Path to res/values.
 
 Options:
-  -c CSV      Write stats to a CSV file.
-  -l LOGFILE  Log output to a file.
-  -v          Increase verbosity.
-  -h --help   Show this screen.
-  --version   Display version.
+  --no-zero-layouts  Ignore layouts with zero buttons.
+  --no-zero-apps     Ignore apps with zero buttons.
+  -c CSV             Write stats to a CSV file.
+  -l LOGFILE         Log output to a file.
+  -v                 Increase verbosity.
+  -h --help          Show this screen.
+  --version          Display version.
+
 agilex is written by Quint Guvernator and licensed by the GPLv3."""
 
 VERSION = "0.1.0"
@@ -27,6 +30,7 @@ import pathlib
 import statistics
 import csv
 import os
+from itertools import chain
 
 from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
@@ -207,7 +211,7 @@ def getRating(layoutsPath: pathlib.Path) -> list:
             raise ValueError("rating.txt reports wrong total value")
 
         # average
-        out[0] = f.readline()
+        out[0] = float(f.readline())
 
     return out
 
@@ -225,7 +229,7 @@ def emptyStats() -> dict:
     return stats
 
 
-def calcButtonStats(buttons: list) -> dict:
+def calcStats(vector: list) -> dict:
 
     statFns = {
         "mean": statistics.mean,
@@ -241,22 +245,46 @@ def calcButtonStats(buttons: list) -> dict:
 
     for k, fn in statFns.items():
         try:
-            stats[k] = fn(buttons)
+            stats[k] = fn(vector)
         except statistics.StatisticsError:
             stats[k] = "NA"
 
     return stats
 
 
-def writeStats(stats: dict, rating: list, outFile: pathlib.Path) -> None:
+def calcRatingStats(ratings: list) -> dict:
 
-    # add ratings to stats
-    for i, r in enumerate(rating):
-        if i == 0:
-            k = "average rating"
-        else:
-            k = "{} star ratings".format(i)
-        stats[k] = r
+    # ignore the average; we'll get our own
+    ratings = ratings[1:]
+
+    stats = {}
+
+    for k, v in calcStats(ratings).items():
+        label = "rating_{}".format(k)
+        stats[label] = v
+
+    # add the plain 'ol ratings
+    for i, r in enumerate(ratings):
+        label = "{} stars".format(i)
+        stats[label] = r
+
+    return stats
+
+
+def calcButtonStats(buttons: list) -> dict:
+
+    stats = {}
+
+    for k, v in calcStats(buttons).items():
+        label = "button_{}".format(k)
+        stats[label] = v
+
+    return stats
+
+def writeStats(buttonStats: dict, ratingStats: dict, outFile: pathlib.Path) -> None:
+
+    # combine buttonStats and ratingStats
+    stats = dict(chain(buttonStats.items(), buttonStats.items()))
 
     # add other entries if already in the file
     entries = []
@@ -280,6 +308,11 @@ def writeStats(stats: dict, rating: list, outFile: pathlib.Path) -> None:
         w.writeheader()
         w.writerows(entries)
 
+def die():
+    if args["-l"]:
+        f.close()
+    sys.exit()
+
 if __name__ == "__main__":
     args = docopt(__doc__, version=VERSION)
 
@@ -301,13 +334,19 @@ if __name__ == "__main__":
 
     if args["-c"]:
         buttons = countAppButtons(layoutPath)
-        if len(buttons) != 0:
-            stats = calcButtonStats(buttons)
-        else:
-            stats = emptyStats()
-        rating = getRating(layoutPath)
-        outFile = pathlib.Path(args["-c"])
-        writeStats(stats, rating, outFile)
+        if args["--no-zero-layouts"]:
+            buttons = [ x for x in buttons if x > 0 ]
 
-        if args["-l"]:
-            f.close()
+        if len(buttons) != 0:
+            buttonStats = calcButtonStats(buttons)
+        else:
+            if args["--no-zero-apps"]:
+                die()
+            else:
+                buttonStats = emptyStats()
+
+        ratingStats = calcRatingStats(getRating(layoutPath))
+        outFile = pathlib.Path(args["-c"])
+        writeStats(buttonStats, ratingStats, outFile)
+
+    die()
