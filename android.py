@@ -4,6 +4,52 @@ from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
 
 
+class Dip(int):
+    '''Device-independent pixels.'''
+
+    def toInches(self) -> float:
+        return self / float(160)
+
+    @classmethod
+    def fromInches(cls, inches: int) -> "Dip":
+        return cls(round(inches * 160))
+
+    @classmethod
+    def fromMillimeters(cls, mm: int) -> "Dip":
+        inches = mm * 3.93700787402e-2
+        return cls.fromInches(inches)
+
+    @classmethod
+    def fromCentimeters(cls, cm: int) -> "Dip":
+        mm = cm * 10
+        return cls.fromMillimeters(mm)
+
+    @classmethod
+    def fromAndroid(cls, s: str) -> "Dip":
+        '''Generates a Dip value from an Android XML property.'''
+
+        s = s.replace(' ', '')
+
+        dispatch = {
+            "dp": cls.__new__,
+            "dip": cls.__new__,
+            "in": cls.fromInches,
+            "mm": cls.fromMillimeters,
+            "cm": cls.fromCentimeters,
+        }
+
+        num = None
+        for end, fn in dispatch.items():
+            if s.endswith(end):
+                num = s.partition(end)[0]
+                break
+
+        if num is None:
+            raise ValueError
+
+        return fn(num)
+
+
 def resource(value, resourcesPath):
     '''Finds the value of a property in an external resources file if a
     reference to it exists, otherwise just returns the plain 'ol value.'''
@@ -164,9 +210,14 @@ class Button(AndroidObject):
     def __init__(self, id, parent, height, width, text="", gravity=None):
         self.id = id
         self.parent = parent
+
+        self.text = text
+
+        height = Dip.fromAndroid(height)
+        width = Dip.fromAndroid(width)
         self.height = inheritable(height, parent, lambda x: x.height)
         self.width = inheritable(height, parent, lambda x: x.height)
-        self.text = text
+
         self.gravity = gravity
 
     @classmethod
