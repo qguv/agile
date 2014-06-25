@@ -35,138 +35,7 @@ from itertools import chain
 from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
 
-
-def resource(value, resourcesPath):
-    '''Finds the value of a property in an external resources file if a
-    reference to it exists, otherwise just retursn the plain 'ol value.'''
-    assert not value.startswith("@+id")
-
-    if not value.startswith("@+"):
-        return value
-
-    value.replace("@+", '', 1)
-    filename, key = tuple(value.split('/', 1))
-    filename = resourcesPath / (filename + ".xml")
-    with filename.open('r') as f:
-        rsoup = bs(f).find("resources")
-
-    return rsoup.find(name=key).string
-
-
-def inheritable(value, parent, getFn):
-    '''Handles parent inheritance of attribute values. value is the XML
-    attribute value, parent is the object's parent, and getFn accesses the
-    relevant attribute when given the parent as an argument.'''
-
-    if value in ("match_parent", "fill_parent"):
-        return getFn(parent)
-    else:
-        return value
-
-
-class AndroidView:
-
-    '''An android Layout or Object.'''
-
-    def __init__(self):
-        self.height = self.width = None
-
-    @staticmethod
-    def fromSoup(parent, soup, resourcesPath):
-        if soup.name.endswith("Layout"):
-            cls = Layout
-        else:
-            cls = AndroidObject
-
-
-class AndroidLayout(AndroidView):
-
-    '''One of three Android layouts: LinearLayout, RelativeLayout, TableLayout.'''
-
-    def __init__(self, parent, height, width, orientation, children, gravity=None, subGravity=None):
-        self.height = inheritable(height, parent, lambda x: x.height)
-        self.width = inheritable(width, parent, lambda x: x.width)
-        self.orientation = orientation
-        self.children = children
-
-    @staticmethod
-    def fromSoup(parent, soup, resourcesPath):
-        dispatch = {
-            "LinearLayout": LinearLayout,
-            "TabularLayout": TabularLayout,
-            "RelativeLayout": RelativeLayout,
-        }
-        cls = dispatch[soup.name]
-        return cls.fromSoup(parent, soup, resourcesPath)
-
-
-class LinearLayout(AndroidLayout):
-
-    def __init__(self):
-        self.children = None
-
-    @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
-        self.id = soup["android:id"]
-        self.height = soup["android:layout_height"]
-        self.width = soup["android:layout_width"]
-        self.children = [ AndroidView.fromSoup(kid) for kid in soup.children ]
-        # TODO
-
-        new = cls(id, parent, height, width, orientation, children, gravity, subGravity)
-        return new
-
-
-class RelativeLayout(AndroidLayout):
-
-    @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
-        raise NotImplementedError
-
-
-class TableLayout(AndroidLayout):
-
-    @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
-        raise NotImplementedError
-
-
-class TableRow(AndroidLayout):
-
-    def __init__(self, children):
-        self.children = children
-
-    @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
-        raise NotImplementedError
-
-
-class AndroidObject(AndroidView):
-
-    '''A widget/view that goes inside a Layout.'''
-    pass
-
-
-class Button(AndroidObject):
-
-    def __init__(self, id, parent, height, width, text="", gravity=None):
-        self.id = id
-        self.parent = parent
-        self.height = inheritable(height, parent, lambda x: x.height)
-        self.width = inheritable(height, parent, lambda x: x.height)
-        self.text = text
-        self.gravity = gravity
-
-    @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
-        id = soup["android:id"]
-        height = soup["android:layout_height"]
-        width = soup["android:layout_height"]
-        text = self.resource(soup.get("android:text", None), resourcesPath)
-        gravity = soup.get("android:gravity", None)
-
-        new = cls(id, parent, height, width, text, gravity)
-        return new
+import android  # local
 
 
 def countLayoutButtons(soup):
@@ -267,8 +136,8 @@ def calcRatingStats(ratings: list) -> dict:
         label = "rating_{}".format(k)
 
         if k == "mean":
-        # mean doesn't mean what it's supposed to mean here. we'll replace it
-        # with our own.
+            # mean doesn't mean what it's supposed to mean here. we'll replace it
+            # with our own.
             stats[label] = mean
             continue
 
@@ -291,6 +160,7 @@ def calcButtonStats(buttons: list) -> dict:
         stats[label] = v
 
     return stats
+
 
 def writeStats(buttonStats: dict, ratingStats: dict, outFile: pathlib.Path) -> None:
 
@@ -318,6 +188,7 @@ def writeStats(buttonStats: dict, ratingStats: dict, outFile: pathlib.Path) -> N
         w = csv.DictWriter(f, header)
         w.writeheader()
         w.writerows(entries)
+
 
 def die():
     if args["-l"]:
