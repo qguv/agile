@@ -133,7 +133,7 @@ def calcRatingStats(ratings: list) -> dict:
 
     for k, v in calcStats(ratings).items():
 
-        label = "rating_{}".format(k)
+        label = "rating_{}".format(k + 1)
 
         if k == "mean":
             # mean doesn't mean what it's supposed to mean here. we'll replace it
