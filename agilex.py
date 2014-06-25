@@ -133,7 +133,7 @@ def calcRatingStats(ratings: list) -> dict:
 
     for k, v in calcStats(ratings).items():
 
-        label = "rating_{}".format(k + 1)
+        label = "rating_{}".format(k)
 
         if k == "mean":
             # mean doesn't mean what it's supposed to mean here. we'll replace it
@@ -145,7 +145,7 @@ def calcRatingStats(ratings: list) -> dict:
 
     # add the plain 'ol ratings
     for i, r in enumerate(ratings):
-        label = "{} stars".format(i)
+        label = "{} stars".format(i + 1)
         stats[label] = r
 
     return stats
