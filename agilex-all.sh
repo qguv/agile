@@ -1,6 +1,11 @@
 #!/usr/bin/env zsh
 
-for d in fdroid/*; do
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Usage: agilex-all.sh <source dir> <csv file>"
+    exit
+fi
+
+for d in $1/*; do
     echo "$d:"
 
     LAYOUT_COUNT=0
@@ -16,7 +21,7 @@ for d in fdroid/*; do
     done
     if [ -n "$LAYOUTS_DIR" ]; then
         echo "\trunning agilex on $LAYOUTS_DIR"
-        python3 ~/dev/agilex/agilex.py --no-zero-apps --no-zero-layouts -c ~/out.csv "$LAYOUTS_DIR"
+        python3 agilex.py --no-zero-apps --no-zero-layouts -c "$2" "$LAYOUTS_DIR"
     else
         echo "\tnothing found for $d"
     fi
