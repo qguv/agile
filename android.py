@@ -4,12 +4,46 @@ from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
 
 
+class AndroidDevice:
+
+    '''Specifications of a device used to simulate element layout and
+    position.'''
+
+    # Values densityDpi, xdpi, and ydpi are usually equivalent.
+    # If xdpi != ydpi, a densityDpi is chosen carefully.
+    densityDpi = None
+    xdpi = None
+    ydpi = None
+
+    # integral
+    widthPixels = None
+    heightPixels = None
+
+    # floating-point
+    scaledDensity = None  # accounts for font scaling
+
+    @property
+    def density(self):
+        '''Determines scaling for d[i]p based on amount of true pixels per true
+        inch. In other words, when multiplied by d[i]p, the quotient is length
+        in true pixels.'''
+
+        if self.densityDpi is None:
+            raise ValueError("Cannot give density: no densityDpi value defined for this device.")
+
+        return self.densityDpi / 160
+
+
 class Dip(int):
 
     '''Device-independent pixels.'''
 
     def toInches(self) -> float:
         return self / float(160)
+
+    @classmethod
+    def fromSp(cls, sp: int) -> "Dip":
+        return cls(sp)
 
     @classmethod
     def fromInches(cls, inches: int) -> "Dip":
@@ -180,7 +214,7 @@ class TableLayout(AndroidLayout):
     '''An AndroidLayout which displays its children in a table.'''
 
     _children = None
-    children = property(lambda self: self._children) #getter
+    children = property(lambda self: self._children)  # getter
 
     @children.setter
     def _(self, children):
@@ -263,3 +297,13 @@ class Button(AndroidObject):
         new.gravity = inheritable(width, parent, lambda x: x.childGravity)
 
         return new
+
+if __name__ == "__main__":
+    print("good phone")
+    phone = AndroidDevice()
+    phone.densityDpi = 160
+    print(phone.density)
+
+    print("bad phone")
+    badPhone = AndroidDevice()
+    print(badPhone.density)  # should error out
