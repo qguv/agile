@@ -5,6 +5,7 @@ bs = lambda x: BeautifulSoup(x, "xml")
 
 
 class Dip(int):
+
     '''Device-independent pixels.'''
 
     def toInches(self) -> float:
@@ -54,6 +55,11 @@ def resource(value, resourcesPath):
     '''Finds the value of a property in an external resources file if a
     reference to it exists, otherwise just returns the plain 'ol value.'''
 
+    if value is None:
+        return
+
+    # ID is not inheritable; this should prevent programming errors. It should
+    # be stripped production and should be considered DEBUG.
     assert not value.startswith("@+id")
 
     if not value.startswith("@+"):
@@ -79,15 +85,21 @@ def inheritable(value, parent, getFn):
         return value
 
 
-class AndroidView:
+class AndroidElement:
 
     '''An android Layout or Object.'''
 
-    def __init__(self, height, width):
-        self.height = self.width = None
+    self.id = None
+    self.height = None  # None or a Dip value
+    self.width = None  # None or a Dip value
+    self.parent = None
+
+    # This is an element's own gravity. Android XML would call it
+    # "android:layout_gravity". Contrast with AndroidLayout.childGravity.
+    self.gravity = None
 
     @staticmethod
-    def fromSoup(parent, soup, resourcesPath):
+    def dispatchFromSoup(parent, soup, resourcesPath):
         '''When given soup, delegates to function of same name in its
         subclasses.'''
 
@@ -98,25 +110,34 @@ class AndroidView:
 
         return cls.fromSoup(parent, soup, resourcesPath)
 
+    @classmethod
+    def fromSoup(cls, parent, soup, resourcesPath):
+        '''Should initialize a new instance from a bs4 soup object.'''
 
-class AndroidLayout(AndroidView):
+        raise NotImplementedError
 
-    '''One of three Android layouts: LinearLayout, RelativeLayout, TableLayout.'''
 
-    def __init__(self, parent, height, width, orientation, children, gravity=None, subGravity=None):
-        self.height = inheritable(height, parent, lambda x: x.height)
-        self.width = inheritable(width, parent, lambda x: x.width)
-        self.orientation = orientation
-        self.children = children
+class AndroidLayout(AndroidElement):
+
+    '''One of four Android layouts: LinearLayout, TableLayout, FrameLayout,
+    RelativeLayout.'''
+
+    self.orientation = None  # "horizontal" or "vertical"
+    self.children = tuple()
+
+    # This is the default gravity of an element's children. Android XML would
+    # call it "android:gravity". Contrast with AndroidElement.gravity.
+    self.childGravity = None
 
     @staticmethod
-    def fromSoup(parent, soup, resourcesPath):
+    def dispatchFromSoup(parent, soup, resourcesPath):
         '''When given soup, delegates to function of same name in its
         subclasses.'''
 
         dispatch = {
             "LinearLayout": LinearLayout,
             "TabularLayout": TabularLayout,
+            "FrameLayout": FrameLayout,
             "RelativeLayout": RelativeLayout,
         }
         cls = dispatch[soup.name]
@@ -127,22 +148,67 @@ class LinearLayout(AndroidLayout):
 
     '''An AndroidLayout which displays its children in-line. The simplest AndroidLayout.'''
 
-    def __init__(self):
-        self.children = None
-
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
         '''Initializes a new LinearLayout from a bs4 soup object.'''
 
-        self.id = soup["android:id"]
-        self.height = soup["android:layout_height"]
-        self.width = soup["android:layout_width"]
-        self.children = [ AndroidView.fromSoup(kid)
-                          for kid in soup.children ]
-        # TODO
+        new = cls()
 
-        new = cls(id, parent, height, width, orientation, children, gravity, subGravity)
+        new.id = soup["android:id"]
+        new.height = soup["android:layout_height"]
+        new.width = soup["android:layout_width"]
+        new.children = tuple([ AndroidElement.dispatchFromSoup(kid)
+                               for kid in soup.children ])
+
         return new
+
+
+class FrameLayout(AndroidLayout):
+
+    '''An AndroidLayout which displays its children stacked in an artifical
+    Z-dimension.'''
+
+    @classmethod
+    def fromSoup(cls, parent, soup, resourcesPath):
+        '''Initializes a new FrameLayout from a bs4 soup object.'''
+
+        raise NotImplementedError
+
+
+class TableLayout(AndroidLayout):
+
+    '''An AndroidLayout which displays its children in a table.'''
+
+    self.children = None
+
+    @property
+    def children(self):
+        return self.children
+
+    @children.set
+    def children(self, children):
+        if not all([ type(child) is TableRow for child in children ]):
+            m = "all children of a TableLayout must be TableRow instances"
+            raise TypeError(m)
+        self.children = children
+
+    @classmethod
+    def fromSoup(cls, parent, soup, resourcesPath):
+        '''Initializes a new TableLayout from a bs4 soup object.'''
+
+        raise NotImplementedError
+
+
+class TableRow(AndroidLayout):
+
+    '''A child of TableLayout, a TableRow holds objects and displays them
+    horizontally in order.'''
+
+    @classmethod
+    def fromSoup(cls, parent, soup, resourcesPath):
+        '''Initializes a new TableRow from a bs4 soup object.'''
+
+        raise NotImplementedError
 
 
 class RelativeLayout(AndroidLayout):
@@ -157,41 +223,12 @@ class RelativeLayout(AndroidLayout):
         raise NotImplementedError
 
 
-class TableLayout(AndroidLayout):
-
-    '''An AndroidLayout which displays its children in a table.'''
-
-    @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
-        '''Initializes a new TableLayout from a bs4 soup object.'''
-
-        raise NotImplementedError
-
-
-class TableRow(AndroidLayout):
-
-    '''A child of TableLayout, a TableRow holds objects and displays them
-    horizontally in order.'''
-
-    def __init__(self, children):
-        self.children = children
-
-    @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
-        '''Initializes a new TableRow from a bs4 soup object.'''
-
-        raise NotImplementedError
-
-
-class AndroidObject(AndroidView):
+class AndroidObject(AndroidElement):
 
     '''A widget/view that goes inside a Layout.'''
 
-    def __init__(*args):
-        raise NotImplementedError
-
     @staticmethod
-    def fromSoup(parent, soup, resourcesPath):
+    def dispatchFromSoup(parent, soup, resourcesPath):
         '''Delegates AndroidObject initialization from a bs4 soup object to the
         proper sub-class.'''
 
@@ -207,28 +244,25 @@ class Button(AndroidObject):
 
     '''Represents the button class in an android layout.'''
 
-    def __init__(self, id, parent, height, width, text="", gravity=None):
-        self.id = id
-        self.parent = parent
-
-        self.text = text
-
-        height = Dip.fromAndroid(height)
-        width = Dip.fromAndroid(width)
-        self.height = inheritable(height, parent, lambda x: x.height)
-        self.width = inheritable(height, parent, lambda x: x.height)
-
-        self.gravity = gravity
-
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
         '''Initializes a new Button from a bs4 soup object.'''
 
-        id = soup["android:id"]
-        height = soup["android:layout_height"]
-        width = soup["android:layout_height"]
-        text = self.resource(soup.get("android:text", None), resourcesPath)
-        gravity = soup.get("android:gravity", None)
+        new = cls()
 
-        new = cls(id, parent, height, width, text, gravity)
+        new.id = soup["android:id"]
+
+        new.text = resource(soup.get("android:text", None), resourcesPath)
+
+        height = soup["android:layout_height"]
+        height = inheritable(height, parent, lambda x: x.height)
+        new.height = Dip.fromAndroid(height)
+
+        width = soup["android:layout_width"]
+        width = inheritable(width, parent, lambda x: x.width)
+        new.width = Dip.fromAndroid(width)
+
+        gravity = soup.get("android:layout_gravity", "match_parent")
+        new.gravity = inheritable(width, parent, lambda x: x.childGravity)
+
         return new

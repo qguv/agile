@@ -162,10 +162,12 @@ def calcButtonStats(buttons: list) -> dict:
     return stats
 
 
-def writeStats(buttonStats: dict, ratingStats: dict, outFile: pathlib.Path) -> None:
+def writeStats(outFile: pathlib.Path, *statsDicts: (dict, ...)) -> None:
+
+    statsItems = ( d.items() for d in statsDicts )
 
     # combine buttonStats and ratingStats
-    stats = dict(chain(buttonStats.items(), ratingStats.items()))
+    stats = dict(chain(*statsItems))
 
     # add other entries if already in the file
     entries = []
@@ -229,6 +231,6 @@ if __name__ == "__main__":
 
         ratingStats = calcRatingStats(getRating(layoutPath))
         outFile = pathlib.Path(args["-c"])
-        writeStats(buttonStats, ratingStats, outFile)
+        writeStats(outFile, buttonStats, ratingStats)
 
     die()
