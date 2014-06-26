@@ -89,14 +89,14 @@ class AndroidElement:
 
     '''An android Layout or Object.'''
 
-    self.id = None
-    self.height = None  # None or a Dip value
-    self.width = None  # None or a Dip value
-    self.parent = None
+    id = None
+    height = None  # None or a Dip value
+    width = None  # None or a Dip value
+    parent = None
 
     # This is an element's own gravity. Android XML would call it
     # "android:layout_gravity". Contrast with AndroidLayout.childGravity.
-    self.gravity = None
+    gravity = None
 
     @staticmethod
     def dispatchFromSoup(parent, soup, resourcesPath):
@@ -122,12 +122,12 @@ class AndroidLayout(AndroidElement):
     '''One of four Android layouts: LinearLayout, TableLayout, FrameLayout,
     RelativeLayout.'''
 
-    self.orientation = None  # "horizontal" or "vertical"
-    self.children = tuple()
+    orientation = None  # "horizontal" or "vertical"
+    children = tuple()
 
     # This is the default gravity of an element's children. Android XML would
     # call it "android:gravity". Contrast with AndroidElement.gravity.
-    self.childGravity = None
+    childGravity = None
 
     @staticmethod
     def dispatchFromSoup(parent, soup, resourcesPath):
@@ -179,14 +179,11 @@ class TableLayout(AndroidLayout):
 
     '''An AndroidLayout which displays its children in a table.'''
 
-    self.children = None
+    _children = None
+    children = property(lambda self: self._children) #getter
 
-    @property
-    def children(self):
-        return self.children
-
-    @children.set
-    def children(self, children):
+    @children.setter
+    def _(self, children):
         if not all([ type(child) is TableRow for child in children ]):
             m = "all children of a TableLayout must be TableRow instances"
             raise TypeError(m)
