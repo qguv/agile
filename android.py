@@ -43,6 +43,7 @@ class Dip(int):
 
     @classmethod
     def fromSp(cls, sp: int) -> "Dip":
+        '''Let's pretend it's Dip for now.'''
         return cls(sp)
 
     @classmethod
@@ -58,6 +59,10 @@ class Dip(int):
     def fromCentimeters(cls, cm: int) -> "Dip":
         mm = cm * 10
         return cls.fromMillimeters(mm)
+
+    @classmethod
+    def fromContent(cls, content: str) -> "Dip":
+        raise NotImplementedError #TODO
 
     @classmethod
     def fromAndroid(cls, s: str) -> "Dip":
@@ -182,6 +187,10 @@ class LinearLayout(AndroidLayout):
 
     '''An AndroidLayout which displays its children in-line. The simplest AndroidLayout.'''
 
+    @property
+    def takenWidth(self):
+        return sum([ child.width for child in self.children ])
+
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath):
         '''Initializes a new LinearLayout from a bs4 soup object.'''
@@ -191,6 +200,8 @@ class LinearLayout(AndroidLayout):
         new.id = soup["android:id"]
         new.height = soup["android:layout_height"]
         new.width = soup["android:layout_width"]
+
+        new.parent = parent
         new.children = tuple([ AndroidElement.dispatchFromSoup(kid)
                                for kid in soup.children ])
 
@@ -270,6 +281,21 @@ class AndroidObject(AndroidElement):
         cls = dispatch[soup.name]
         return cls.fromSoup(parent, soup, resourcesPath)
 
+
+class UnknownObject(AndroidElement):
+
+    '''Called when we don't know about the properties of the AndroidObject but
+    we know it exists.'''
+
+    @classmethod
+    def fromSoup(cls, parent, soup, resourcesPath):
+        '''Does its best to tell us as much as it can about an object we don't
+        know anything about.'''
+
+        new = cls()
+
+        height = soup["android:layout_height"]
+        new.height = Dip.fromAndroid(height)
 
 class Button(AndroidObject):
 
