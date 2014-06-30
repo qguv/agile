@@ -33,13 +33,22 @@ class AndroidDevice:
 
         return self.densityDpi / 160
 
+    def buttonSizes(self, layout) -> [(float, float), ...]:
+        '''Given a layout, determines the rendered sizes of buttons on the
+        screen.'''
+        pass  # TODO
+
 
 class Dip(int):
 
-    '''Device-independent pixels.'''
+    '''Device-independent pixels. Use the value directly if you want a DIP
+    value. Otherwise, use a method beginning "to" to help you out.'''
 
     def toInches(self) -> float:
         return self / float(160)
+
+    def toPixels(self, densityScalar: float) -> int:
+        return int(round(self * densityScalar))
 
     @classmethod
     def fromSp(cls, sp: int) -> "Dip":
@@ -62,7 +71,7 @@ class Dip(int):
 
     @classmethod
     def fromContent(cls, content: str) -> "Dip":
-        raise NotImplementedError #TODO
+        raise NotImplementedError  # TODO
 
     @classmethod
     def fromAndroid(cls, s: str) -> "Dip":
@@ -297,6 +306,7 @@ class UnknownObject(AndroidElement):
         height = soup["android:layout_height"]
         new.height = Dip.fromAndroid(height)
 
+
 class Button(AndroidObject):
 
     '''Represents the button class in an android layout.'''
@@ -325,11 +335,4 @@ class Button(AndroidObject):
         return new
 
 if __name__ == "__main__":
-    print("good phone")
-    phone = AndroidDevice()
-    phone.densityDpi = 160
-    print(phone.density)
-
-    print("bad phone")
-    badPhone = AndroidDevice()
-    print(badPhone.density)  # should error out
+    pass
