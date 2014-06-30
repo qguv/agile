@@ -23,7 +23,7 @@ class AndroidDevice:
     scaledDensity = None  # accounts for font scaling
 
     @property
-    def density(self):
+    def densityScalar(self) -> float:
         '''Determines scaling for d[i]p based on amount of true pixels per true
         inch. In other words, when multiplied by d[i]p, the quotient is length
         in true pixels.'''
@@ -333,6 +333,31 @@ class Button(AndroidObject):
         new.gravity = inheritable(width, parent, lambda x: x.childGravity)
 
         return new
+
+
+def renderedTextWidth(text: str, device: AndroidDevice, *, size="14sp", font="default"):
+    '''Determines the width of rendered text on a specific device.'''
+
+    # TODO: factor in weight
+
+    fontFamilies = {
+        "sans": "Droid Sans",
+        "serif": "Droid Serif",
+        "mono": "Droid Sans Mono",
+        "monospaced": "Droid Sans Mono",
+        "default": "Droid Sans",
+    }
+
+    font = fontFamilies.get(font.lower(), fontFamilies["default"])
+
+    size = Dip(size)
+    size = size.toPixels(device.densityScalar)
+    size = "{}px".format(size)
+
+    font = None
+    with matplotlib.font_manager.FontManager(size=size, weight="normal") as fm:
+        prop = matplotlib.font_manager.FontProperties(family=font, size=size)
+        font = fm.findfont(prop, fallback_to_default=False)
 
 if __name__ == "__main__":
     pass
