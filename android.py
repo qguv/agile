@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+# this file is okay to import * into devices.py
 
 from bs4 import BeautifulSoup
+import matplotlib
 bs = lambda x: BeautifulSoup(x, "xml")
 
 
@@ -354,10 +356,13 @@ def renderedTextWidth(text: str, device: AndroidDevice, *, size="14sp", font="de
     size = size.toPixels(device.densityScalar)
     size = "{}px".format(size)
 
-    font = None
     with matplotlib.font_manager.FontManager(size=size, weight="normal") as fm:
-        prop = matplotlib.font_manager.FontProperties(family=font, size=size)
-        font = fm.findfont(prop, fallback_to_default=False)
+        with matplotlib.font_manager.FontProperties(family=font, size=size) as prop:
+            font = fm.findfont(prop, fallback_to_default=False)
+
+    with matplotlib.figure() as f:
+        r = f.canvas.get_renderer()
+        # FIXME
 
 if __name__ == "__main__":
     pass

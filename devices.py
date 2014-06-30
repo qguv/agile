@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
-import android
+# has been designed to fit into one namespace
+from android import *
 
 galaxyS3 = AndroidDevice()
-with galaxyS3 as a:
+galaxyS3.densityDpi = 306
 
-    a.densityDpi = 306
+galaxyS3.xdpi = galaxyS3.ydpi = galaxyS3.densityDpi
+galaxyS3.scaledDensity = galaxyS3.densityDpi
 
-    a.xdpi = a.ydpi = a.densityDpi
-    a.scaledDensity = a.densityDpi
-
-    a.widthPixels, a.heightPixels = 720, 1280
+galaxyS3.widthPixels, galaxyS3.heightPixels = 720, 1280
 
