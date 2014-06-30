@@ -38,7 +38,7 @@ bs = lambda x: BeautifulSoup(x, "xml")
 import android  # local
 
 
-def countLayoutButtons(soup):
+def countLayoutButtons(soup) -> int:
     '''Given soup of an XML file, count how many buttons are defined.'''
     return len(soup("Button"))
 

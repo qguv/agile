@@ -2,7 +2,8 @@
 # this file is okay to import * into devices.py
 
 from bs4 import BeautifulSoup
-import matplotlib
+import pygame.font as fonts
+from functools import lru_cache as memoize
 bs = lambda x: BeautifulSoup(x, "xml")
 
 
@@ -40,6 +41,43 @@ class AndroidDevice:
         screen.'''
         pass  # TODO
 
+    def textDimensions(self, text: str, *, size="14sp", font="default") -> (int, int):
+        '''Determines the width of rendered text on a specific device.'''
+
+        # FUTURE: factor in weight
+
+        fontFamilies = {
+            "sans": "Droid Sans",
+            "serif": "Droid Serif",
+            "mono": "Droid Sans Mono",
+            "monospaced": "Droid Sans Mono",
+            "default": "Droid Sans",
+        }
+
+        fontFamily = fontFamilies.get(font.lower(), fontFamilies["default"])
+
+        size = Dip.fromAndroid(size)
+        size = size.toPoints()
+        print("{} point font".format(size))  # DEBUG
+
+        return self._textDimensions(text, size, font)
+
+    @memoize()
+    def _textDimensions(self, text, size: "Dip", fontFamily: str) -> (int, int):
+        '''Determines the width of rendered text on a specific device. Don't
+        call this directly; use a function to normalize Dip and font such that
+        no errors would be raised.'''
+
+        # FUTURE: factor in weight
+
+        print("Calculating...")  # DEBUG
+        fonts.init()
+        font = fonts.SysFont(fontFamily, size)
+
+        width, height = font.size(text)
+
+        return (width, height)
+
 
 class Dip(int):
 
@@ -49,17 +87,33 @@ class Dip(int):
     def toInches(self) -> float:
         return self / float(160)
 
+    def toPoints(self) -> int:
+        points = self.toInches() * 72
+        points = int(round(points))
+        return points
+
     def toPixels(self, densityScalar: float) -> int:
         return int(round(self * densityScalar))
 
     @classmethod
     def fromSp(cls, sp: int) -> "Dip":
         '''Let's pretend it's Dip for now.'''
+        # FUTURE: make this actually calculate scale
         return cls(sp)
 
     @classmethod
-    def fromInches(cls, inches: int) -> "Dip":
+    def fromInches(cls, inches: "number") -> "Dip":
         return cls(round(inches * 160))
+
+    @classmethod
+    def fromPoints(self, points: int) -> int:
+        inches = points / 72
+        return self.fromInches(inches)
+
+    @classmethod
+    def fromPicas(self, picas: int) -> int:
+        inches = picas / 6
+        return self.fromInches(inches)
 
     @classmethod
     def fromMillimeters(cls, mm: int) -> "Dip":
@@ -81,18 +135,27 @@ class Dip(int):
 
         s = s.replace(' ', '')
 
+        new = lambda x: cls.__new__(cls, x)
+
         dispatch = {
-            "dp": cls.__new__,
-            "dip": cls.__new__,
+            "dp": new,
+            "dip": new,
+
+            # FUTURE: make these actually calculate scale
+            "sp": new,
+            "sip": new,
+
             "in": cls.fromInches,
             "mm": cls.fromMillimeters,
             "cm": cls.fromCentimeters,
+            "pt": cls.fromPoints,
+            "pc": cls.fromPicas,
         }
 
         num = None
         for end, fn in dispatch.items():
             if s.endswith(end):
-                num = s.partition(end)[0]
+                num = int(s.partition(end)[0])
                 break
 
         if num is None:
@@ -337,32 +400,11 @@ class Button(AndroidObject):
         return new
 
 
-def renderedTextWidth(text: str, device: AndroidDevice, *, size="14sp", font="default"):
-    '''Determines the width of rendered text on a specific device.'''
-
-    # TODO: factor in weight
-
-    fontFamilies = {
-        "sans": "Droid Sans",
-        "serif": "Droid Serif",
-        "mono": "Droid Sans Mono",
-        "monospaced": "Droid Sans Mono",
-        "default": "Droid Sans",
-    }
-
-    font = fontFamilies.get(font.lower(), fontFamilies["default"])
-
-    size = Dip(size)
-    size = size.toPixels(device.densityScalar)
-    size = "{}px".format(size)
-
-    with matplotlib.font_manager.FontManager(size=size, weight="normal") as fm:
-        with matplotlib.font_manager.FontProperties(family=font, size=size) as prop:
-            font = fm.findfont(prop, fallback_to_default=False)
-
-    with matplotlib.figure() as f:
-        r = f.canvas.get_renderer()
-        # FIXME
-
 if __name__ == "__main__":
-    pass
+    from devices import galaxyS3
+    w, h = galaxyS3.textDimensions("Hello, world!")
+    print(w, h)
+    w, h = galaxyS3.textDimensions("Hello, world!", size="8cm")
+    print(w, h)
+    w, h = galaxyS3.textDimensions("Hello, world!", size="227pt")
+    print(w, h)
