@@ -55,7 +55,7 @@ class AndroidDevice:
 
         size = Dip.fromAndroid(size)
         size = size.toPoints()
-        print("{} point font".format(size))  # DEBUG
+        print("\n{} point font\n".format(size))  # DEBUG
 
         return self._textDimensions(text, size, font)
 
@@ -121,10 +121,6 @@ class Dip(int):
     def fromCentimeters(cls, cm: int) -> "Dip":
         mm = cm * 10
         return cls.fromMillimeters(mm)
-
-    @classmethod
-    def fromContent(cls, content: str) -> "Dip":
-        raise NotImplementedError  # TODO
 
     @classmethod
     def fromAndroid(cls, s: str) -> "Dip":
@@ -306,8 +302,13 @@ class LinearLayout(AndroidLayout):
 
         return new
 
+    def area(self):
+        return self.height * self.width
+
     def buttonRatio(self):
-        pass  # TODO
+        buttonArea = sum(( kid.area() for kid in self.children if type(kid) == Button ))
+        return buttonArea / self.area()
+
 
 
 class FrameLayout(AndroidLayout):
@@ -432,7 +433,7 @@ class Button(AndroidObject):
         return new
 
     def area(self):
-        return  # TODO
+        return self.width * self.height
 
 
 if __name__ == "__main__":
@@ -443,3 +444,5 @@ if __name__ == "__main__":
     print(w, h)
     w, h = galaxyS3.textDimensions("Hello, world!", size="227pt")
     print(w, h)
+
+    # TODO: get area, handle notimplementederrors
