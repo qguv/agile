@@ -60,7 +60,7 @@ class AndroidDevice:
         return self._textDimensions(text, size, font)
 
     @memoize()
-    def _textDimensions(self, text, size: "Dip", fontFamily: str) -> (int, int):
+    def _textDimensions(self, text, size: "points", fontFamily: str) -> (int, int):
         '''Determines the width of rendered text on a specific device. Don't
         call this directly; use a function to normalize Dip and font such that
         no errors would be raised.'''
