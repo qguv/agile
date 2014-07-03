@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-# has been designed to fit into one namespace
-from android import *
+from android import *  # local
 
 galaxyS3 = AndroidDevice()
 galaxyS3.densityDpi = 306

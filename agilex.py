@@ -38,21 +38,30 @@ bs = lambda x: BeautifulSoup(x, "xml")
 import android  # local
 
 
-def countLayoutButtons(soup) -> int:
-    '''Given soup of an XML file, count how many buttons are defined.'''
+def countLayoutButtons(soup: "soup from an XML layout") -> int:
+    '''Count how many buttons are defined in a layout.'''
     return len(soup("Button"))
 
 
-def countAppButtons(layoutPath: pathlib.Path) -> list:
-    files = [ f for f in layoutPath.iterdir() if f.is_file() ]
-    buttons = []
+def countAppButtons(layoutsPath: pathlib.Path) -> [int, ...]:
+    '''Count how many buttons are defined in each layout in an application's
+    layouts directory.'''
+    return [ countLayoutButtons(soup) for soup in appSoup(layoutsPath) ]
 
-    for filename in files:
-        with filename.open('r') as f:
-            s = bs(f)
-        buttons.append(countLayoutButtons(s))
 
-    return buttons
+def layoutSoup(layoutPath: pathlib.Path) -> "soup":
+    '''Make soup from a single layout.'''
+
+    with layoutPath.open('r') as f:
+        s = bs(f)
+    return s
+
+
+def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
+    '''Make soup from each layout in an application's layouts directory.'''
+
+    files = [ f for f in layoutsPath.iterdir() if f.is_file() ]
+    return [ layoutSoup(f) for f in files ]
 
 
 def getRating(layoutsPath: pathlib.Path) -> (list, int):

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # this file is okay to import * into devices.py
 
+import agilex  # local
+
 from bs4 import BeautifulSoup
 import pygame.font as fonts
 from functools import lru_cache as memoize
@@ -35,11 +37,6 @@ class AndroidDevice:
             raise ValueError("Cannot give density: no densityDpi value defined for this device.")
 
         return self.densityDpi / 160
-
-    def buttonSizes(self, layout) -> [(float, float), ...]:
-        '''Given a layout, determines the rendered sizes of buttons on the
-        screen.'''
-        pass  # TODO
 
     def textDimensions(self, text: str, *, size="14sp", font="default") -> (int, int):
         '''Determines the width of rendered text on a specific device.'''
@@ -166,7 +163,8 @@ class Dip(int):
 
 def resource(value, resourcesPath):
     '''Finds the value of a property in an external resources file if a
-    reference to it exists, otherwise just returns the plain 'ol value.'''
+    reference to it exists.
+    If not applicable, just pipes the value on through.'''
 
     if value is None:
         return
@@ -190,12 +188,39 @@ def resource(value, resourcesPath):
 def inheritable(value, parent, getFn):
     '''Handles parent inheritance of attribute values. value is the XML
     attribute value, parent is the object's parent, and getFn accesses the
-    relevant attribute when given the parent as an argument.'''
+    relevant attribute when given the parent as an argument.
+    If not applicable, just pipes the value on through.'''
 
     if value in ("match_parent", "fill_parent"):
         return getFn(parent)
     else:
         return value
+
+
+def wrappable(width: str, height: str, text: str, device: AndroidDevice, **kwargs) -> (str, str):
+    '''Handles automatic "resize to fit text" on Buttons and the like.
+    If not applicable, just pipes the value on through.'''
+
+    '''
+     ________ 
+    |        |
+    | Button |
+    |________|
+    '''
+    
+
+    if "wrap_content" in (width, height):
+        width_text, height_text = device.textDimensions(text, **kwargs)
+
+        if height == "wrap_content":
+            # a free line above, a free line below, and a text line
+            height = height_text * 3
+
+        if width == "wrap_content":
+            # the width of the text plus half of the height on both sides
+            width = width_text + height_text 
+
+    return (width, height)
 
 
 class AndroidElement:
@@ -280,6 +305,9 @@ class LinearLayout(AndroidLayout):
                                for kid in soup.children ])
 
         return new
+
+    def buttonRatio(self):
+        pass  # TODO
 
 
 class FrameLayout(AndroidLayout):
@@ -377,7 +405,7 @@ class Button(AndroidObject):
     '''Represents the button class in an android layout.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
+    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new Button from a bs4 soup object.'''
 
         new = cls()
@@ -386,18 +414,25 @@ class Button(AndroidObject):
 
         new.text = resource(soup.get("android:text", None), resourcesPath)
 
-        height = soup["android:layout_height"]
-        height = inheritable(height, parent, lambda x: x.height)
-        new.height = Dip.fromAndroid(height)
-
         width = soup["android:layout_width"]
+        height = soup["android:layout_height"]
+
+        # FUTURE: implement fonts
+        width, height = wrappable(width, height, new.text, device)
+
         width = inheritable(width, parent, lambda x: x.width)
+        height = inheritable(height, parent, lambda x: x.height)
+
         new.width = Dip.fromAndroid(width)
+        new.height = Dip.fromAndroid(height)
 
         gravity = soup.get("android:layout_gravity", "match_parent")
         new.gravity = inheritable(width, parent, lambda x: x.childGravity)
 
         return new
+
+    def area(self):
+        return  # TODO
 
 
 if __name__ == "__main__":
