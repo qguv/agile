@@ -233,7 +233,7 @@ class AndroidElement:
     gravity = None
 
     @staticmethod
-    def dispatchFromSoup(parent, soup, resourcesPath):
+    def dispatchFromSoup(parent, soup, resourcesPath, *, device=None):
         '''When given soup, delegates to function of same name in its
         subclasses.'''
 
@@ -242,13 +242,13 @@ class AndroidElement:
         else:
             cls = AndroidObject
 
-        return cls.fromSoup(parent, soup, resourcesPath)
+        return cls.fromSoup(parent, soup, resourcesPath, device=device)
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
+    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Should initialize a new instance from a bs4 soup object.'''
 
-        raise NotImplementedError
+        raise NotImplementedError(type(cls))
 
 
 class AndroidLayout(AndroidElement):
@@ -264,7 +264,7 @@ class AndroidLayout(AndroidElement):
     childGravity = None
 
     @staticmethod
-    def dispatchFromSoup(parent, soup, resourcesPath):
+    def dispatchFromSoup(parent, soup, resourcesPath, *, device=None):
         '''When given soup, delegates to function of same name in its
         subclasses.'''
 
@@ -275,7 +275,7 @@ class AndroidLayout(AndroidElement):
             "RelativeLayout": RelativeLayout,
         }
         cls = dispatch[soup.name]
-        return cls.fromSoup(parent, soup, resourcesPath)
+        return cls.fromSoup(parent, soup, resourcesPath, device=device)
 
 
 class LinearLayout(AndroidLayout):
@@ -287,7 +287,7 @@ class LinearLayout(AndroidLayout):
         return sum([ child.width for child in self.children ])
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
+    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new LinearLayout from a bs4 soup object.'''
 
         new = cls()
@@ -297,8 +297,16 @@ class LinearLayout(AndroidLayout):
         new.width = soup["android:layout_width"]
 
         new.parent = parent
-        new.children = tuple([ AndroidElement.dispatchFromSoup(kid)
-                               for kid in soup.children ])
+
+        children = []
+        for kid in soup.children:
+            try:
+                kid = AndroidElement.dispatchFromSoup(kid)
+            except NotImplementedError as e:
+                print(e)
+                continue
+            children.append(kid)
+        new.children = tuple(children)
 
         return new
 
@@ -317,10 +325,10 @@ class FrameLayout(AndroidLayout):
     Z-dimension.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
+    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new FrameLayout from a bs4 soup object.'''
 
-        raise NotImplementedError
+        raise NotImplementedError(type(cls))
 
 
 class TableLayout(AndroidLayout):
@@ -338,10 +346,10 @@ class TableLayout(AndroidLayout):
         self.children = children
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
+    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new TableLayout from a bs4 soup object.'''
 
-        raise NotImplementedError
+        raise NotImplementedError(type(cls))
 
 
 class TableRow(AndroidLayout):
@@ -350,10 +358,10 @@ class TableRow(AndroidLayout):
     horizontally in order.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
+    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new TableRow from a bs4 soup object.'''
 
-        raise NotImplementedError
+        raise NotImplementedError(type(cls))
 
 
 class RelativeLayout(AndroidLayout):
@@ -362,10 +370,10 @@ class RelativeLayout(AndroidLayout):
     most complicated AndroidLayout.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
+    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new RelativeLayout from a bs4 soup object.'''
 
-        raise NotImplementedError
+        raise NotImplementedError(type(cls))
 
 
 class AndroidObject(AndroidElement):
@@ -373,7 +381,7 @@ class AndroidObject(AndroidElement):
     '''A widget/view that goes inside a Layout.'''
 
     @staticmethod
-    def dispatchFromSoup(parent, soup, resourcesPath):
+    def dispatchFromSoup(parent, soup, resourcesPath, device=None):
         '''Delegates AndroidObject initialization from a bs4 soup object to the
         proper sub-class.'''
 
@@ -382,7 +390,7 @@ class AndroidObject(AndroidElement):
         }
 
         cls = dispatch[soup.name]
-        return cls.fromSoup(parent, soup, resourcesPath)
+        return cls.fromSoup(parent, soup, resourcesPath, device=device)
 
 
 class UnknownObject(AndroidElement):
@@ -391,7 +399,7 @@ class UnknownObject(AndroidElement):
     we know it exists.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath):
+    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Does its best to tell us as much as it can about an object we don't
         know anything about.'''
 
@@ -435,14 +443,3 @@ class Button(AndroidObject):
     def area(self):
         return self.width * self.height
 
-
-if __name__ == "__main__":
-    from devices import galaxyS3
-    w, h = galaxyS3.textDimensions("Hello, world!")
-    print(w, h)
-    w, h = galaxyS3.textDimensions("Hello, world!", size="8cm")
-    print(w, h)
-    w, h = galaxyS3.textDimensions("Hello, world!", size="227pt")
-    print(w, h)
-
-    # TODO: get area, handle notimplementederrors
