@@ -152,6 +152,7 @@ class Dip(int):
                 break
 
         if num is None:
+            print(s)
             raise ValueError
 
         return fn(num)
@@ -238,17 +239,17 @@ class AndroidElement:
         subclasses.'''
 
         if soup.name.endswith("Layout"):
-            cls = Layout
+            cls = AndroidLayout
         else:
             cls = AndroidObject
 
-        return cls.fromSoup(parent, soup, resourcesPath, device=device)
+        return cls.dispatchFromSoup(parent, soup, resourcesPath, device=device)
 
     @classmethod
     def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Should initialize a new instance from a bs4 soup object.'''
 
-        raise NotImplementedError(type(cls))
+        raise NotImplementedError(cls)
 
 
 class AndroidLayout(AndroidElement):
@@ -270,7 +271,7 @@ class AndroidLayout(AndroidElement):
 
         dispatch = {
             "LinearLayout": LinearLayout,
-            "TabularLayout": TabularLayout,
+            "TableLayout": TableLayout,
             "FrameLayout": FrameLayout,
             "RelativeLayout": RelativeLayout,
         }
@@ -292,20 +293,22 @@ class LinearLayout(AndroidLayout):
 
         new = cls()
 
-        new.id = soup["android:id"]
-        new.height = soup["android:layout_height"]
-        new.width = soup["android:layout_width"]
+        new.id = soup.get("android:id", None)
+        new.height = soup("android:layout_height", None)
+        new.width = soup("android:layout_width", None)
 
         new.parent = parent
 
         children = []
         for kid in soup.children:
             try:
-                kid = AndroidElement.dispatchFromSoup(kid)
-            except NotImplementedError as e:
-                print(e)
+                kid = AndroidElement.dispatchFromSoup(parent, kid, resourcesPath, device=device)
+                children.append(kid)
+            except AttributeError:
+                # the object is a string or something weird that's not soup
                 continue
-            children.append(kid)
+            except NotImplementedError:
+                continue
         new.children = tuple(children)
 
         return new
@@ -328,7 +331,7 @@ class FrameLayout(AndroidLayout):
     def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new FrameLayout from a bs4 soup object.'''
 
-        raise NotImplementedError(type(cls))
+        raise NotImplementedError(cls)
 
 
 class TableLayout(AndroidLayout):
@@ -349,7 +352,7 @@ class TableLayout(AndroidLayout):
     def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new TableLayout from a bs4 soup object.'''
 
-        raise NotImplementedError(type(cls))
+        raise NotImplementedError(cls)
 
 
 class TableRow(AndroidLayout):
@@ -361,7 +364,7 @@ class TableRow(AndroidLayout):
     def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new TableRow from a bs4 soup object.'''
 
-        raise NotImplementedError(type(cls))
+        raise NotImplementedError(cls)
 
 
 class RelativeLayout(AndroidLayout):
@@ -373,7 +376,7 @@ class RelativeLayout(AndroidLayout):
     def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
         '''Initializes a new RelativeLayout from a bs4 soup object.'''
 
-        raise NotImplementedError(type(cls))
+        raise NotImplementedError(cls)
 
 
 class AndroidObject(AndroidElement):
@@ -389,11 +392,11 @@ class AndroidObject(AndroidElement):
             "Button": Button
         }
 
-        cls = dispatch[soup.name]
+        cls = dispatch.get(soup.name, UnknownObject)
         return cls.fromSoup(parent, soup, resourcesPath, device=device)
 
 
-class UnknownObject(AndroidElement):
+class UnknownObject(AndroidObject):
 
     '''Called when we don't know about the properties of the AndroidObject but
     we know it exists.'''
@@ -405,8 +408,12 @@ class UnknownObject(AndroidElement):
 
         new = cls()
 
-        height = soup["android:layout_height"]
-        new.height = Dip.fromAndroid(height)
+        try:
+            height = soup["android:layout_height"]
+            height = inheritable(height, parent, lambda x: x.height)
+            new.height = Dip.fromAndroid(height)
+        except KeyError:
+            print("Couldn't find height.")
 
 
 class Button(AndroidObject):

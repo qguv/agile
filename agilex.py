@@ -54,6 +54,7 @@ def layoutSoup(layoutPath: pathlib.Path) -> "soup":
 
     with layoutPath.open('r') as f:
         s = bs(f)
+    s = next(s.children) # getting the first 
     return s
 
 
@@ -61,7 +62,8 @@ def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
     '''Make soup from each layout in an application's layouts directory.'''
 
     files = [ f for f in layoutsPath.iterdir() if f.is_file() ]
-    return [ layoutSoup(f) for f in files ]
+    layouts = [ layoutSoup(f) for f in files ]
+    return layouts
 
 
 def getRating(layoutsPath: pathlib.Path) -> (list, int):
