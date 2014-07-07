@@ -22,7 +22,7 @@ Options:
 
 agilex is written by Quint Guvernator and licensed by the GPLv3."""
 
-VERSION = "0.1.0"
+VERSION = "indev"
 
 import sys
 from docopt import docopt
