@@ -38,9 +38,18 @@ class AndroidDevice:
 
         return self.densityDpi / 160
 
+    @property
+    def width(self) -> "Dip":
+        return Dip.fromPixels(self.widthPixels, self.densityScalar)
+
+    @property
+    def height(self) -> "Dip":
+        return Dip.fromPixels(self.heightPixels, self.densityScalar)
+
     def textDimensions(self, text: str, *, size="14sp", font="default") -> (int, int):
         '''Determines the width of rendered text on a specific device.'''
 
+        # FUTURE: figure out actual size and font
         # FUTURE: factor in weight
 
         fontFamilies = {
@@ -91,6 +100,10 @@ class Dip(int):
 
     def toPixels(self, densityScalar: float) -> int:
         return int(round(self * densityScalar))
+
+    @classmethod
+    def fromPixels(cls, pixels: int, densityScalar: float) -> "Dip":
+        return cls(round(pixels / densityScalar))
 
     @classmethod
     def fromSp(cls, sp: int) -> "Dip":
@@ -152,8 +165,7 @@ class Dip(int):
                 break
 
         if num is None:
-            print(s)
-            raise ValueError
+            raise ValueError("can't figure out Dip value for {}".format(s))
 
         return fn(num)
 
@@ -166,7 +178,7 @@ def resource(value, resourcesPath):
     if value is None:
         return
 
-    # ID is not inheritable; this should prevent programming errors. It should
+    # ID is not inheritProperty; this should prevent programming errors. It should
     # be stripped production and should be considered DEBUG.
     assert not value.startswith("@+id")
 
@@ -182,16 +194,16 @@ def resource(value, resourcesPath):
     return rsoup.find(name=key).string
 
 
-def inheritable(value, parent, getFn):
+def inheritProperty(value, parent, getFn):
     '''Handles parent inheritance of attribute values. value is the XML
     attribute value, parent is the object's parent, and getFn accesses the
     relevant attribute when given the parent as an argument.
-    If not applicable, just pipes the value on through.'''
+    If not applicable, complains.'''
 
     if value in ("match_parent", "fill_parent"):
         return getFn(parent)
     else:
-        return value
+        raise AttributeError("value is unique, not inheritProperty")
 
 
 def wrappable(width: str, height: str, text: str, device: AndroidDevice, **kwargs) -> (str, str):
@@ -199,12 +211,12 @@ def wrappable(width: str, height: str, text: str, device: AndroidDevice, **kwarg
     If not applicable, just pipes the value on through.'''
 
     '''
-     ________ 
+     ________
     |        |
     | Button |
     |________|
     '''
-    
+
 
     if "wrap_content" in (width, height):
         width_text, height_text = device.textDimensions(text, **kwargs)
@@ -215,7 +227,7 @@ def wrappable(width: str, height: str, text: str, device: AndroidDevice, **kwarg
 
         if width == "wrap_content":
             # the width of the text plus half of the height on both sides
-            width = width_text + height_text 
+            width = width_text + height_text
 
     return (width, height)
 
@@ -237,6 +249,9 @@ class AndroidElement:
     def dispatchFromSoup(parent, soup, resourcesPath, *, device=None):
         '''When given soup, delegates to function of same name in its
         subclasses.'''
+
+        if parent is None:
+            parent = device
 
         if soup.name.endswith("Layout"):
             cls = AndroidLayout
@@ -278,6 +293,19 @@ class AndroidLayout(AndroidElement):
         cls = dispatch[soup.name]
         return cls.fromSoup(parent, soup, resourcesPath, device=device)
 
+def findChildren(commonParent, soupChildren: "output from soup.children", resourcesPath, *, device=None) -> tuple("children"):
+    children = []
+    for kid in soupChildren:
+        try:
+            kid = AndroidElement.dispatchFromSoup(commonParent, kid, resourcesPath, device=device)
+            children.append(kid)
+        except AttributeError:
+            # the object is a string or something weird that's not soup
+            continue
+        except NotImplementedError:
+            continue
+    return tuple(children)
+
 
 class LinearLayout(AndroidLayout):
 
@@ -299,17 +327,7 @@ class LinearLayout(AndroidLayout):
 
         new.parent = parent
 
-        children = []
-        for kid in soup.children:
-            try:
-                kid = AndroidElement.dispatchFromSoup(parent, kid, resourcesPath, device=device)
-                children.append(kid)
-            except AttributeError:
-                # the object is a string or something weird that's not soup
-                continue
-            except NotImplementedError:
-                continue
-        new.children = tuple(children)
+        new.children = findChildren(new, soup.children, resourcesPath, device=device)
 
         return new
 
@@ -408,12 +426,33 @@ class UnknownObject(AndroidObject):
 
         new = cls()
 
+        width = soup["android:layout_width"]
+        height = soup["android:layout_height"]
+
         try:
-            height = soup["android:layout_height"]
-            height = inheritable(height, parent, lambda x: x.height)
+            text = soup["android:text"]
+            wrappable(width, height, text, device)
+        except KeyError:
+            # no text in soup
+            print(width, height)
+
+        try:
+            new.height = inheritProperty(height, parent, lambda x: x.height)
+        except AttributeError:
+            # handling uninheritable property
             new.height = Dip.fromAndroid(height)
         except KeyError:
+            # handling soup access error
             print("Couldn't find height.")
+
+        try:
+            new.width = inheritProperty(width, parent, lambda x: x.width)
+        except AttributeError:
+            # handling uninheritable property
+            new.width = Dip.fromAndroid(width)
+        except KeyError:
+            # handling soup access error
+            print("Couldn't find width.")
 
 
 class Button(AndroidObject):
@@ -436,17 +475,23 @@ class Button(AndroidObject):
         # FUTURE: implement fonts
         width, height = wrappable(width, height, new.text, device)
 
-        width = inheritable(width, parent, lambda x: x.width)
-        height = inheritable(height, parent, lambda x: x.height)
+        try:
+            new.width = inheritProperty(width, parent, lambda x: x.width)
+        except AttributeError:
+            new.width = Dip.fromAndroid(width)
 
-        new.width = Dip.fromAndroid(width)
-        new.height = Dip.fromAndroid(height)
+        try:
+            new.height = inheritProperty(height, parent, lambda x: x.height)
+        except AttributeError:
+            new.height = Dip.fromAndroid(height)
 
         gravity = soup.get("android:layout_gravity", "match_parent")
-        new.gravity = inheritable(width, parent, lambda x: x.childGravity)
+        try:
+            new.gravity = inheritProperty(width, parent, lambda x: x.childGravity)
+        except AttributeError:
+            new.gravity = gravity
 
         return new
 
     def area(self):
         return self.width * self.height
-

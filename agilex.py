@@ -37,7 +37,6 @@ bs = lambda x: BeautifulSoup(x, "xml")
 
 import android  # local
 
-
 def countLayoutButtons(soup: "soup from an XML layout") -> int:
     '''Count how many buttons are defined in a layout.'''
     return len(soup("Button"))
@@ -54,7 +53,7 @@ def layoutSoup(layoutPath: pathlib.Path) -> "soup":
 
     with layoutPath.open('r') as f:
         s = bs(f)
-    s = next(s.children) # getting the first 
+    s = next(s.children) # getting the first
     return s
 
 
