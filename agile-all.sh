@@ -21,7 +21,7 @@ for d in $1/*; do
     done
     if [ -n "$LAYOUTS_DIR" ]; then
         echo "\trunning agile on $LAYOUTS_DIR"
-        python3 agile.py --no-zero-apps --no-zero-layouts -c "$2" "$LAYOUTS_DIR"
+        python3 agile.py --tags -c "$2" "$LAYOUTS_DIR"
     else
         echo "\tnothing found for $d"
     fi

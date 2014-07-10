@@ -3,7 +3,7 @@
 """agile, the Android Graphical Interface LEXer
 
 Usage:
-  agile.py [options] LAYOUTS [VALUES]
+  agile.py [options] (--buttons | --tags) LAYOUTS [VALUES]
   agile.py (-h | --help | help)
   agile.py --version
 
@@ -14,6 +14,8 @@ Arguments:
 Options:
   --no-zero-layouts  Ignore layouts with zero buttons.
   --no-zero-apps     Ignore apps with zero buttons.
+  --buttons          Count buttons.
+  --tags             Count all tags.
   -c CSV             Write stats to a CSV file.
   -l LOGFILE         Log output to a file.
   -v                 Increase verbosity.
@@ -35,17 +37,66 @@ from itertools import chain
 from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
 
-import android  # local
 
 def countLayoutButtons(soup: "soup from an XML layout") -> int:
     '''Count how many buttons are defined in a layout.'''
     return len(soup("Button"))
 
 
+def countTags(soup: "soup from an XML layout") -> dict:
+    '''Return a dictionary listing the freqency of each tag type by name.'''
+
+    tagCount = dict()
+
+    tags = soup.find_all(True) #TODO
+
+    for tag in tags:
+        # increase int by one
+        name = tag.name
+        if tag.name is None:
+            continue
+        tagCount["tag_" + name] = tagCount.get(name, 0) + 1
+    return tagCount
+
+
 def countAppButtons(layoutsPath: pathlib.Path) -> [int, ...]:
     '''Count how many buttons are defined in each layout in an application's
     layouts directory.'''
-    return [ countLayoutButtons(soup) for soup in appSoup(layoutsPath) ]
+
+    layouts, _ = appSoup(layoutsPath)
+    return [ countLayoutButtons(soup) for soup in layouts ]
+
+
+def countAppTags(layoutsPath: pathlib.Path) -> dict:
+    '''Returns a combined tag frequency dictionary for all layouts in an
+    application's layouts directory.'''
+
+    # we'll get all the app's layouts as a list of soup
+    layouts, name = appSoup(layoutsPath)
+
+    total = dict()
+    for soup in layouts:
+
+        # we can get a dictionary of tags in each layout with countTags
+        # we'll make a running total of each in the "total" dictionary
+        try:
+            d = countTags(soup)
+        except AttributeError:
+            print(soup)
+            raise RuntimeError
+
+        # combine all dictionaries in all layouts by incrementing
+        keys = list(d.keys()) + list(total.keys())
+        total = { k: int(d.get(k, 0)) + int(total.get(k, 0)) for k in keys }
+
+    # throw the package location in there and we're all done
+    total["package"] = name
+    return total
+
+
+def countLayouts(layoutsPath: pathlib.Path) -> int:
+    '''Counts how many layouts are defined.'''
+    return len([ f for f in layoutsPath.iterdir() if f.is_file() ])
 
 
 def layoutSoup(layoutPath: pathlib.Path) -> "soup":
@@ -53,16 +104,16 @@ def layoutSoup(layoutPath: pathlib.Path) -> "soup":
 
     with layoutPath.open('r') as f:
         s = bs(f)
-    s = next(s.children) # getting the first
     return s
 
 
 def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
     '''Make soup from each layout in an application's layouts directory.'''
 
-    files = [ f for f in layoutsPath.iterdir() if f.is_file() ]
-    layouts = [ layoutSoup(f) for f in files ]
-    return layouts
+    apps = [ f for f in layoutsPath.iterdir() if f.is_file() ]
+    name = str(layoutsPath)
+    layouts = [ layoutSoup(f) for f in apps ]
+    return layouts, name
 
 
 def getRating(layoutsPath: pathlib.Path) -> (list, int):
@@ -139,24 +190,11 @@ def calcRatingStats(ratings: list) -> dict:
     mean = ratings[0]
     ratings = ratings[1:]
 
-    stats = {}
+    # plain ratings
+    stats = { "star_{}".format(i + 1): r for i, r in enumerate(ratings) }
 
-    for k, v in calcStats(ratings).items():
-
-        label = "rating_{}".format(k)
-
-        if k == "mean":
-            # mean doesn't mean what it's supposed to mean here. we'll replace it
-            # with our own.
-            stats[label] = mean
-            continue
-
-        stats[label] = v
-
-    # add the plain 'ol ratings
-    for i, r in enumerate(ratings):
-        label = "{} stars".format(i + 1)
-        stats[label] = r
+    # the mean
+    stats["star_mean"] = mean
 
     return stats
 
@@ -174,29 +212,35 @@ def calcButtonStats(buttons: list) -> dict:
 
 def writeStats(outFile: pathlib.Path, *statsDicts: (dict, ...)) -> None:
 
+    # combine feature and rating stats into a row of statistics
     statsItems = ( d.items() for d in statsDicts )
-
-    # combine buttonStats and ratingStats
     stats = dict(chain(*statsItems))
 
+    # neither unique entries nor order matters
+    header = set(stats.keys())
+
     # add other entries if already in the file
-    entries = []
     if outFile.exists():
         with outFile.open('r') as f:
             r = csv.DictReader(f)
-            entries.extend(list(r))
+            entries = list(r)
+
+            # add headers already in file
+            header = header.union(r.fieldnames)
+
         try:
             os.remove(outFile.as_posix())
         except OSError as e:
             print("Error: {} - {}".format(e.filename, str(e)))
+    else:
+        entries = []
 
-    # add current entry
+    # add current row of statistics
     entries.append(stats)
 
     # write 'em all
     with outFile.open('w') as f:
-        header = list(stats.keys())
-        header.sort()
+        header = sorted(header)
         w = csv.DictWriter(f, header)
         w.writeheader()
         w.writerows(entries)
@@ -227,20 +271,26 @@ if __name__ == "__main__":
         resourcesPath = pathlib.Path(args["VALUES"])
 
     if args["-c"]:
-        buttons = countAppButtons(layoutPath)
-        if args["--no-zero-layouts"]:
-            buttons = [ x for x in buttons if x > 0 ]
 
-        if len(buttons) != 0:
-            buttonStats = calcButtonStats(buttons)
-        else:
-            if args["--no-zero-apps"]:
-                die()
+        if args["--buttons"]:
+            buttons = countAppButtons(layoutPath)
+            if args["--no-zero-layouts"]:
+                buttons = [ x for x in buttons if x > 0 ]
+
+            if len(buttons) != 0:
+                stats = calcButtonStats(buttons)
             else:
-                buttonStats = emptyStats()
+                if args["--no-zero-apps"]:
+                    die()
+                else:
+                    stats = emptyStats()
+
+        elif args["--tags"]:
+            stats = countAppTags(layoutPath)
 
         ratingStats = calcRatingStats(getRating(layoutPath))
         outFile = pathlib.Path(args["-c"])
-        writeStats(outFile, buttonStats, ratingStats)
+        layoutCount = { "layoutCount": countLayouts(layoutPath) }
+        writeStats(outFile, stats, ratingStats, layoutCount)
 
     die()
