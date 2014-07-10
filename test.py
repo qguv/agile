@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import android
-import agilex
+import agile
 from devices import galaxyS3
 
 print("\nTESTING TEXT DIMENSION PROBING")
@@ -16,7 +16,7 @@ print(w, h)
 
 print("\nTESTING LEXER")
 
-xmlLayouts = agilex.appSoup(Path("/home/qguvernator/fdroid/org.torproject.android/src/res/layout/"))
+xmlLayouts = agile.appSoup(Path("/home/qguvernator/fdroid/org.torproject.android/src/res/layout/"))
 layouts = []
 
 for layout in xmlLayouts:

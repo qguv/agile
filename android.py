@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # this file is okay to import * into devices.py
 
-import agilex  # local
-
 from bs4 import BeautifulSoup
 import pygame.font as fonts
 from functools import lru_cache as memoize
