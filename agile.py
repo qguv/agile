@@ -55,7 +55,11 @@ def countTags(soup: "soup from an XML layout") -> dict:
         name = tag.name
         if tag.name is None:
             continue
-        tagCount["tag_" + name] = tagCount.get(name, 0) + 1
+        key = "tag_{}".format(name)
+
+        oldvalue = int(tagCount.get(name, 0))
+        tagCount[key] = oldvalue + 1
+
     return tagCount
 
 
@@ -74,24 +78,29 @@ def countAppTags(layoutsPath: pathlib.Path) -> dict:
     # we'll get all the app's layouts as a list of soup
     layouts, name = appSoup(layoutsPath)
 
-    total = dict()
+    alltags = dict()
     for soup in layouts:
 
         # we can get a dictionary of tags in each layout with countTags
         # we'll make a running total of each in the "total" dictionary
-        try:
-            d = countTags(soup)
-        except AttributeError:
-            print(soup)
-            raise RuntimeError
+        newtags = countTags(soup)
 
-        # combine all dictionaries in all layouts by incrementing
-        keys = list(d.keys()) + list(total.keys())
-        total = { k: int(d.get(k, 0)) + int(total.get(k, 0)) for k in keys }
+        # combine all dictionaries in all layouts
+
+        # combine unique keys
+        newkeys = set(newtags.keys())
+        oldkeys = set(alltags.keys())
+        keys = oldkeys.union(newkeys)
+
+        # combine all values
+        for k in keys:
+            oldvalue = int(alltags.get(k, 0))
+            newvalue = int(newtags.get(k, 0))
+            alltags[k] = oldvalue + newvalue
 
     # throw the package location in there and we're all done
-    total["package"] = name
-    return total
+    alltags["package"] = name
+    return alltags
 
 
 def countLayouts(layoutsPath: pathlib.Path) -> int:
