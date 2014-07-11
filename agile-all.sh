@@ -1,12 +1,19 @@
 #!/usr/bin/env zsh
 
-if [ -z "$1" ] || [ -z "$2" ]; then
-    echo "Usage: agile-all.sh <source dir> <csv file>"
+if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]; then
+    echo "Usage: agile-all.sh <source dir> <csv file> <log file>"
     return 1
 fi
 
-for d in $1/*; do
-    echo "$d:"
+LOGFILE="$3"
+echo "agile-all.sh log" > "$LOGFILE"
+echo -n
+
+DIRS=($1/*)
+LENDIRS=${#DIRS[@]} # length
+DIRNUM=0
+for d in $DIRS; do
+    echo "$d:" >> "$LOGFILE"
 
     LAYOUT_COUNT=0
     LAYOUTS_DIR="nothing for now"
@@ -20,9 +27,21 @@ for d in $1/*; do
         ALL_LAYOUT_DIRS="$(echo $ALL_LAYOUT_DIRS | tail -n +2)"
     done
     if [ -n "$LAYOUTS_DIR" ]; then
-        echo "\trunning agile on $LAYOUTS_DIR"
-        python3 agile.py --tags -c "$2" "$LAYOUTS_DIR"
+        echo "\trunning agile on $LAYOUTS_DIR" >> "$LOGFILE"
+        python3 agile.py --tags -c "$2" "$LAYOUTS_DIR" >> "$LOGFILE" 2&>1
     else
-        echo "\tnothing found for $d"
+        echo "\tnothing found for $d" >> "$LOGFILE"
     fi
+
+    let "DIRNUM += 1"
+    let "PCT = DIRNUM * 100 / LENDIRS"
+    printf " %2d%% - %3d of %3d complete" "$PCT" "$DIRNUM" "$LENDIRS"
+
+    # return cursor to beginning of last line
+    echo -en "\e[0K\r"
+
 done
+
+PROBLEMS="$(cat $LOGFILE | grep Error | wc -l)"
+
+echo "agile-all.sh finished with $PROBLEMS problems. See $LOGFILE for more info."
