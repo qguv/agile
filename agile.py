@@ -41,7 +41,6 @@ def countLayoutButtons(soup: "soup from an XML layout") -> int:
     '''Count how many buttons are defined in a layout.'''
     return len(soup("Button"))
 
-
 def countTags(soup: "soup from an XML layout") -> dict:
     '''Return a dictionary listing the freqency of each tag type by name.'''
 
@@ -61,14 +60,12 @@ def countTags(soup: "soup from an XML layout") -> dict:
 
     return tagCount
 
-
 def countAppButtons(layoutsPath: pathlib.Path) -> [int, ...]:
     '''Count how many buttons are defined in each layout in an application's
     layouts directory.'''
 
     layouts, _ = appSoup(layoutsPath)
     return [ countLayoutButtons(soup) for soup in layouts ]
-
 
 def countAppTags(layoutsPath: pathlib.Path) -> dict:
     '''Returns a combined tag frequency dictionary for all layouts in an
@@ -101,11 +98,9 @@ def countAppTags(layoutsPath: pathlib.Path) -> dict:
     alltags["package"] = name
     return alltags
 
-
 def countLayouts(layoutsPath: pathlib.Path) -> int:
     '''Counts how many layouts are defined.'''
     return len([ f for f in layoutsPath.iterdir() if f.is_file() ])
-
 
 def layoutSoup(layoutPath: pathlib.Path) -> "soup":
     '''Make soup from a single layout.'''
@@ -114,7 +109,6 @@ def layoutSoup(layoutPath: pathlib.Path) -> "soup":
         s = bs(f)
     return s
 
-
 def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
     '''Make soup from each layout in an application's layouts directory.'''
 
@@ -122,7 +116,6 @@ def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
     name = str(layoutsPath)
     layouts = [ layoutSoup(f) for f in apps ]
     return layouts, name
-
 
 def getRating(layoutsPath: pathlib.Path) -> (list, int):
     '''Gets a rating count and an average rating. The average rating is
@@ -156,7 +149,6 @@ def getRating(layoutsPath: pathlib.Path) -> (list, int):
 
     return out
 
-
 def emptyStats() -> dict:
     stats = {
         "mean": 0,
@@ -168,7 +160,6 @@ def emptyStats() -> dict:
         "stdev": "NA",
     }
     return stats
-
 
 def calcStats(vector: list) -> dict:
 
@@ -192,7 +183,6 @@ def calcStats(vector: list) -> dict:
 
     return stats
 
-
 def calcRatingStats(ratings: list) -> dict:
 
     mean = ratings[0]
@@ -206,45 +196,42 @@ def calcRatingStats(ratings: list) -> dict:
 
     return stats
 
+def readAndTrash(inFile: pathlib.Path) -> (set, [dict, ...]):
+    '''Reads in a CSV full of statistics and gives a set of headers and a list
+    of entries (dictionaries with key=columnName).'''
 
-def calcButtonStats(buttons: list) -> dict:
+    # no file, no entries
+    if not inFile.exists():
+        return (None, None)
 
-    stats = {}
+    with inFile.open('r') as f:
+        r = csv.DictReader(f)
+        entries = list(r)
+        header = set(r.fieldnames)
 
-    for k, v in calcStats(buttons).items():
-        label = "button_{}".format(k)
-        stats[label] = v
+    if len(entries) == 0:
+        raise OSError("Couldn't read from file. Delete it if it's empty.")
 
-    return stats
+    try:
+        os.remove(outFile.as_posix())
+    except OSError as e:
+        print("Error: {} - {}".format(e.filename, str(e)))
 
+    return (header, entries)
 
-def writeStats(outFile: pathlib.Path, *statsDicts: (dict, ...)) -> None:
+def dictCombine(*dictionaries) -> dict:
+    '''Combines dictionaries.'''
 
-    # combine feature and rating stats into a row of statistics
-    statsItems = ( d.items() for d in statsDicts )
-    stats = dict(chain(*statsItems))
+    dItems = ( d.items() for d in dictionaries )
+    return dict(chain(*dItems))
 
-    # neither unique entries nor order matters
-    header = set(stats.keys())
+def writeStats(outFile: pathlib.Path, entries: [dict]) -> None:
 
     # add other entries if already in the file
-    if outFile.exists():
-        with outFile.open('r') as f:
-            r = csv.DictReader(f)
-            entries = list(r)
-
-            # add headers already in file
-            header = header.union(r.fieldnames)
-
-        try:
-            os.remove(outFile.as_posix())
-        except OSError as e:
-            print("Error: {} - {}".format(e.filename, str(e)))
-    else:
-        entries = []
-
-    # add current row of statistics
-    entries.append(stats)
+    header, oldEntries = readAndTrash(outFile)
+    entries.extend(oldEntries)
+    for d in stats:
+        header = header.union(d.keys())
 
     # write 'em all
     with outFile.open('w') as f:
@@ -272,7 +259,7 @@ def _getArgDirs(args, log=lambda x: None) -> ("res/layouts", "res/values"):
     return (layoutPath, resourcesPath)
 
 def _getRepoDirs(repo: "repo path") -> [("res/layouts", "res/values"), ...]:
-    pass #TODO
+    pass #TODO: translate from bash
 
 def _getLogFn(args) -> ("function", "file"):
     '''Check CLI args to determine the log function.'''
@@ -297,21 +284,30 @@ if __name__ == "__main__":
     else:
         dirs = [_getArgDirs(args, log=log)]
 
-    # Where are our independent variable stats coming from?
-    if args["tags"]:
-        stats = countAppTags(layoutPath)
+    # start a list of dicts, which represent CSV rows, which represent apps
+    entries = []
+    for layoutPath, resourcesPath in dirs:
 
-    # calculate dependent variable (evaluative metric) stats
-    ratingStats = calcRatingStats(getRating(layoutPath))
+        # Where are our independent variable stats coming from?
+        if args["tags"]:
+            stats = countAppTags(layoutPath)
+        else:
+            log("No subcommand given; cancelling...")
+            _die(f, 1)
+
+        # calculate dependent variable (evaluative metric) stats
+        ratingStats = calcRatingStats(getRating(layoutPath))
+
+        # other statistics to add
+        layoutCount = { "layoutCount": countLayouts(layoutPath) }
+
+        entries.append(dictCombine(stats, ratingStats, layoutCount)
 
     # Where are our stats going?
     outFile = pathlib.Path(args["-o"])
 
-    # other statistics to add
-    layoutCount = { "layoutCount": countLayouts(layoutPath) }
-
     # put all statistics in the file
-    writeStats(outFile, stats, ratingStats, layoutCount)
+    writeStats(outFile, entries)
 
-    # kill files if we've got 'em
+    # kill files if they're open
     _die(f)
