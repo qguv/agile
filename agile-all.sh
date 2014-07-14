@@ -28,7 +28,7 @@ for d in $DIRS; do
     done
     if [ -n "$LAYOUTS_DIR" ]; then
         echo "\trunning agile on $LAYOUTS_DIR" >> "$LOGFILE"
-        python3 agile.py --tags -c "$2" "$LAYOUTS_DIR" >> "$LOGFILE" 2&>1
+        python3 agile.py tags -o "$2" "$LAYOUTS_DIR" >> "$LOGFILE" 2&>1
     else
         echo "\tnothing found for $d" >> "$LOGFILE"
     fi

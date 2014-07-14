@@ -3,20 +3,19 @@
 """agile, the Android Graphical Interface LEXer
 
 Usage:
-  agile.py [options] (--buttons | --tags) LAYOUTS [VALUES]
+  agile.py tags [options] (-o CSV) LAYOUTS [--values VALUES]
+  agile.py tags [options] (-o CSV) (--repo REPOSITORY)
   agile.py (-h | --help | help)
   agile.py --version
 
 Arguments:
-  LAYOUTS     Path to res/layouts.
-  VALUES      Path to res/values.
+  CSV                Path to output CSV.
+  LAYOUTS            Path to res/layouts.
+  VALUES             Path to res/values.
+  REPOSITORY         Path to a folder of Android packages.
 
 Options:
-  --no-zero-layouts  Ignore layouts with zero buttons.
-  --no-zero-apps     Ignore apps with zero buttons.
-  --buttons          Count buttons.
-  --tags             Count all tags.
-  -c CSV             Write stats to a CSV file.
+  tags               Count tags.
   -l LOGFILE         Log output to a file.
   -v                 Increase verbosity.
   -h --help          Show this screen.
@@ -254,52 +253,65 @@ def writeStats(outFile: pathlib.Path, *statsDicts: (dict, ...)) -> None:
         w.writeheader()
         w.writerows(entries)
 
-
-def die():
-    if args["-l"]:
+def _die(f, code=0):
+    '''Closes open files and quits.'''
+    if f is not None:
         f.close()
-    sys.exit()
+    sys.exit(code)
+
+def _getArgDirs(args, log=lambda x: None) -> ("res/layouts", "res/values")
+    '''Determines input and output files from command-line arguments.'''
+    layoutPath = pathlib.Path(args["LAYOUTS"])
+    resourcesPath = args["VALUES"]
+    if resourcesPath is None:
+        log("Warning: no VALUES directory specified.")
+        log("Attempting to do without it.")
+        resourcesPath = None
+    else:
+        resourcesPath = pathlib.Path(args["VALUES"])
+    return (layoutPath, resourcesPath)
+
+def _getRepoDirs("repo path") -> [("res/layouts", "res/values"), ...]:
+    pass #TODO
+
+def _getLogFn(args) -> ("function", file):
+    '''Check CLI args to determine the log function.'''
+    if args["-v"]:
+        return (print, None)
+    elif args["-l"]:
+        f = open(args["LOGFILE"], "a")
+        log = lambda x: print(x, file=f)
+        return (log, f)
+    else:
+        return (lambda x: None, None)
 
 if __name__ == "__main__":
     args = docopt(__doc__, version=VERSION)
 
-    if args["-v"]:
-        log = print
-    elif args["-l"]:
-        f = open(args["LOGFILE"], "a")
-        log = lambda x: print(x, file=f)
+    # How do we want to log?
+    log, f = _getLogFn()
+
+    # How are we getting our data?
+    if args["--repo"]:
+        dirs = _getRepoDirs(args["--repo"])
     else:
-        log = lambda x: None
+        dirs = [_getArgDirs(args, log=log)]
 
-    layoutPath = pathlib.Path(args["LAYOUTS"])
-    resourcesPath = args["VALUES"]
-    if resourcesPath is None:
-        log("Warning: no VALUES directory specified. Attempting to do without it.")
-        resourcesPath = None
-    else:
-        resourcesPath = pathlib.Path(args["VALUES"])
+    # Where are our independent variable stats coming from?
+    if args["tags"]:
+        stats = countAppTags(layoutPath)
 
-    if args["-c"]:
+    # calculate dependent variable (evaluative metric) stats
+    ratingStats = calcRatingStats(getRating(layoutPath))
 
-        if args["--buttons"]:
-            buttons = countAppButtons(layoutPath)
-            if args["--no-zero-layouts"]:
-                buttons = [ x for x in buttons if x > 0 ]
+    # Where are our stats going?
+    outFile = pathlib.Path(args["-o"])
 
-            if len(buttons) != 0:
-                stats = calcButtonStats(buttons)
-            else:
-                if args["--no-zero-apps"]:
-                    die()
-                else:
-                    stats = emptyStats()
+    # other statistics to add
+    layoutCount = { "layoutCount": countLayouts(layoutPath) }
 
-        elif args["--tags"]:
-            stats = countAppTags(layoutPath)
+    # put all statistics in the file
+    writeStats(outFile, stats, ratingStats, layoutCount)
 
-        ratingStats = calcRatingStats(getRating(layoutPath))
-        outFile = pathlib.Path(args["-c"])
-        layoutCount = { "layoutCount": countLayouts(layoutPath) }
-        writeStats(outFile, stats, ratingStats, layoutCount)
-
-    die()
+    # kill files if we've got 'em
+    _die(f)
