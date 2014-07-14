@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""agile, the Android Graphical Interface LEXer
+"""agile, the Android Graphical Interface LExer
 
 Usage:
   agile.py tags [options] (-o CSV) LAYOUTS [--values VALUES]
@@ -258,8 +258,15 @@ def _getArgDirs(args, log=lambda x: None) -> ("res/layouts", "res/values"):
         resourcesPath = pathlib.Path(args["VALUES"])
     return (layoutPath, resourcesPath)
 
-def _getRepoDirs(repo: "repo path") -> [("res/layouts", "res/values"), ...]:
-    pass #TODO: translate from bash
+def _getRepoDirs(repoDir: "repo path") -> [("res/layout", "res/values"), ...]:
+    repos = list(repoDir.iterdir())
+    paths = []
+
+    for repo in repos:
+        layouts = repo.glob("**/res/layout")
+        values = repo.glob("**/res/values")
+
+    pass #TODO
 
 def _getLogFn(args) -> ("function", "file"):
     '''Check CLI args to determine the log function.'''
@@ -276,11 +283,11 @@ if __name__ == "__main__":
     args = docopt(__doc__, version=VERSION)
 
     # How do we want to log?
-    log, f = _getLogFn()
+    log, f = _getLogFn(args)
 
     # How are we getting our data?
     if args["--repo"]:
-        dirs = _getRepoDirs(args["--repo"])
+        dirs = _getRepoDirs(pathlib.Path(args["REPOSITORY"]))
     else:
         dirs = [_getArgDirs(args, log=log)]
 
@@ -301,7 +308,7 @@ if __name__ == "__main__":
         # other statistics to add
         layoutCount = { "layoutCount": countLayouts(layoutPath) }
 
-        entries.append(dictCombine(stats, ratingStats, layoutCount)
+        entries.append(dictCombine(stats, ratingStats, layoutCount))
 
     # Where are our stats going?
     outFile = pathlib.Path(args["-o"])
