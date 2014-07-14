@@ -259,7 +259,7 @@ def _die(f, code=0):
         f.close()
     sys.exit(code)
 
-def _getArgDirs(args, log=lambda x: None) -> ("res/layouts", "res/values")
+def _getArgDirs(args, log=lambda x: None) -> ("res/layouts", "res/values"):
     '''Determines input and output files from command-line arguments.'''
     layoutPath = pathlib.Path(args["LAYOUTS"])
     resourcesPath = args["VALUES"]
@@ -271,10 +271,10 @@ def _getArgDirs(args, log=lambda x: None) -> ("res/layouts", "res/values")
         resourcesPath = pathlib.Path(args["VALUES"])
     return (layoutPath, resourcesPath)
 
-def _getRepoDirs("repo path") -> [("res/layouts", "res/values"), ...]:
+def _getRepoDirs(repo: "repo path") -> [("res/layouts", "res/values"), ...]:
     pass #TODO
 
-def _getLogFn(args) -> ("function", file):
+def _getLogFn(args) -> ("function", "file"):
     '''Check CLI args to determine the log function.'''
     if args["-v"]:
         return (print, None)
