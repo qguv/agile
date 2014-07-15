@@ -4,6 +4,7 @@
 from bs4 import BeautifulSoup
 import pygame.font as fonts
 from functools import lru_cache as memoize
+import pathlib
 bs = lambda x: BeautifulSoup(x, "xml")
 
 
@@ -168,7 +169,7 @@ class Dip(int):
         return fn(num)
 
 
-def resource(value, resourcesPath):
+def resource(value: str, resourcesPaths: [pathlib.Path]):
     '''Finds the value of a property in an external resources file if a
     reference to it exists.
     If not applicable, just pipes the value on through.'''
@@ -185,9 +186,25 @@ def resource(value, resourcesPath):
 
     value.replace("@+", '', 1)
     filename, key = tuple(value.split('/', 1))
-    filename = resourcesPath / (filename + ".xml")
-    with filename.open('r') as f:
-        rsoup = bs(f).find("resources")
+
+    l = len(resourcesPaths)
+    for i, resourcesPath in enumerate(resourcesPaths):
+        remaining = l - i - 1
+        try:
+            filename = resourcesPath / (filename + ".xml")
+            with filename.open('r') as f:
+                rsoup = bs(f).find("resources")
+        except OSError:
+            m = "Couldn't find {}."
+            m += "Will try the next of {} remaining directories."
+            m = m.format(filename, remaining)
+            print(m)
+
+        if rsoup is None:
+            m = "Couldn't find {} in {}."
+            m += "Will try the next of {} remaining directories."
+            m = m.format(value, filename, remaining)
+            print(m)
 
     return rsoup.find(name=key).string
 
@@ -244,7 +261,7 @@ class AndroidElement:
     gravity = None
 
     @staticmethod
-    def dispatchFromSoup(parent, soup, resourcesPath, *, device=None):
+    def dispatchFromSoup(parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''When given soup, delegates to function of same name in its
         subclasses.'''
 
@@ -256,10 +273,10 @@ class AndroidElement:
         else:
             cls = AndroidObject
 
-        return cls.dispatchFromSoup(parent, soup, resourcesPath, device=device)
+        return cls.dispatchFromSoup(parent, soup, resourcesPaths, device=device)
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
+    def fromSoup(cls, parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''Should initialize a new instance from a bs4 soup object.'''
 
         raise NotImplementedError(cls)
@@ -278,7 +295,7 @@ class AndroidLayout(AndroidElement):
     childGravity = None
 
     @staticmethod
-    def dispatchFromSoup(parent, soup, resourcesPath, *, device=None):
+    def dispatchFromSoup(parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''When given soup, delegates to function of same name in its
         subclasses.'''
 
@@ -289,13 +306,13 @@ class AndroidLayout(AndroidElement):
             "RelativeLayout": RelativeLayout,
         }
         cls = dispatch[soup.name]
-        return cls.fromSoup(parent, soup, resourcesPath, device=device)
+        return cls.fromSoup(parent, soup, resourcesPaths, device=device)
 
-def findChildren(commonParent, soupChildren: "output from soup.children", resourcesPath, *, device=None) -> tuple("children"):
+def findChildren(commonParent, soupChildren: "output from soup.children", resourcesPaths: [pathlib.Path], *, device=None) -> tuple("children"):
     children = []
     for kid in soupChildren:
         try:
-            kid = AndroidElement.dispatchFromSoup(commonParent, kid, resourcesPath, device=device)
+            kid = AndroidElement.dispatchFromSoup(commonParent, kid, resourcesPaths, device=device)
             children.append(kid)
         except AttributeError:
             # the object is a string or something weird that's not soup
@@ -314,7 +331,7 @@ class LinearLayout(AndroidLayout):
         return sum([ child.width for child in self.children ])
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
+    def fromSoup(cls, parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''Initializes a new LinearLayout from a bs4 soup object.'''
 
         new = cls()
@@ -325,7 +342,7 @@ class LinearLayout(AndroidLayout):
 
         new.parent = parent
 
-        new.children = findChildren(new, soup.children, resourcesPath, device=device)
+        new.children = findChildren(new, soup.children, resourcesPaths, device=device)
 
         return new
 
@@ -344,7 +361,7 @@ class FrameLayout(AndroidLayout):
     Z-dimension.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
+    def fromSoup(cls, parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''Initializes a new FrameLayout from a bs4 soup object.'''
 
         raise NotImplementedError(cls)
@@ -365,7 +382,7 @@ class TableLayout(AndroidLayout):
         self.children = children
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
+    def fromSoup(cls, parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''Initializes a new TableLayout from a bs4 soup object.'''
 
         raise NotImplementedError(cls)
@@ -377,7 +394,7 @@ class TableRow(AndroidLayout):
     horizontally in order.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
+    def fromSoup(cls, parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''Initializes a new TableRow from a bs4 soup object.'''
 
         raise NotImplementedError(cls)
@@ -389,7 +406,7 @@ class RelativeLayout(AndroidLayout):
     most complicated AndroidLayout.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
+    def fromSoup(cls, parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''Initializes a new RelativeLayout from a bs4 soup object.'''
 
         raise NotImplementedError(cls)
@@ -400,7 +417,7 @@ class AndroidObject(AndroidElement):
     '''A widget/view that goes inside a Layout.'''
 
     @staticmethod
-    def dispatchFromSoup(parent, soup, resourcesPath, device=None):
+    def dispatchFromSoup(parent, soup, resourcesPaths: [pathlib.Path], device=None):
         '''Delegates AndroidObject initialization from a bs4 soup object to the
         proper sub-class.'''
 
@@ -409,7 +426,7 @@ class AndroidObject(AndroidElement):
         }
 
         cls = dispatch.get(soup.name, UnknownObject)
-        return cls.fromSoup(parent, soup, resourcesPath, device=device)
+        return cls.fromSoup(parent, soup, resourcesPaths, device=device)
 
 
 class UnknownObject(AndroidObject):
@@ -418,7 +435,7 @@ class UnknownObject(AndroidObject):
     we know it exists.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
+    def fromSoup(cls, parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''Does its best to tell us as much as it can about an object we don't
         know anything about.'''
 
@@ -458,7 +475,7 @@ class Button(AndroidObject):
     '''Represents the button class in an android layout.'''
 
     @classmethod
-    def fromSoup(cls, parent, soup, resourcesPath, *, device=None):
+    def fromSoup(cls, parent, soup, resourcesPaths: [pathlib.Path], *, device=None):
         '''Initializes a new Button from a bs4 soup object.'''
 
         new = cls()
