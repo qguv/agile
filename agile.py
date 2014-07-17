@@ -4,22 +4,24 @@
 
 Usage:
   agile.py tags [options] (-o CSV) LAYOUTS [--values VALUES]
-  agile.py tags [options] (-o CSV) (--repo REPOSITORY)
+  agile.py tags [options] (-o CSV) (--repo REPOSITORY) (--dirlist DIRLIST [--generate])
   agile.py (-h | --help | help)
   agile.py --version
 
 Arguments:
-  CSV                Path to output CSV.
-  LAYOUTS            Path to res/layouts.
-  VALUES             Path to res/values.
-  REPOSITORY         Path to a folder of Android packages.
+  CSV         Path to output CSV.
+  LAYOUTS     Path to res/layouts.
+  VALUES      Path to res/values.
+  REPOSITORY  Path to a folder of Android packages.
+  DIRLIST     Path to the output of getRepoDirs or getArgDirs.
 
 Options:
-  tags               Count tags.
-  -l LOGFILE         Log output to a file.
-  -v                 Increase verbosity.
-  -h --help          Show this screen.
-  --version          Display version.
+  tags        Count tags.
+  -l LOGFILE  Log output to a file.
+  --generate  Actually run getRepoDirs or getArgDirs and save it to DIRLIST.
+  -v          Increase verbosity.
+  -h --help   Show this screen.
+  --version   Display version.
 
 agile is written by Quint Guvernator and licensed by the GPLv3."""
 
@@ -32,10 +34,22 @@ import statistics
 import csv
 import os
 from itertools import chain
+from subprocess import check_call
 
 from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
 
+def echo(x):
+    space = (len(x) - 80) * " "
+    _echo(x + space)
+    _wipe()
+
+def _echo(x):
+    call = ["echo", "-n", x]
+    check_call(call)
+
+def _wipe():
+    check_call(["echo", "-en", r"\e[0K\r"])
 
 def countLayoutButtons(soup: "soup from an XML layout") -> int:
     '''Count how many buttons are defined in a layout.'''
@@ -67,18 +81,20 @@ def countAppButtons(layoutsPath: pathlib.Path) -> [int, ...]:
     layouts, _ = appSoup(layoutsPath)
     return [ countLayoutButtons(soup) for soup in layouts ]
 
-def countAppTags(layoutsPath: pathlib.Path) -> dict:
+def countAppTags(layoutsPaths: [pathlib.Path, ...]) -> dict:
     '''Returns a combined tag frequency dictionary for all layouts in an
     application's layouts directory.'''
 
     # we'll get all the app's layouts as a list of soup
-    layouts, name = appSoup(layoutsPath)
+    layouts = []
+    for l in layoutsPaths:
+        layouts.extend(appSoup(l))
 
     alltags = dict()
     for soup in layouts:
 
         # we can get a dictionary of tags in each layout with countTags
-        # we'll make a running total of each in the "total" dictionary
+        # we'll make a running total of each in the "alltags" dictionary
         newtags = countTags(soup)
 
         # combine all dictionaries in all layouts
@@ -95,7 +111,8 @@ def countAppTags(layoutsPath: pathlib.Path) -> dict:
             alltags[k] = oldvalue + newvalue
 
     # throw the package location in there and we're all done
-    alltags["package"] = name
+    alltags["package"] = str(layoutsPaths[0])
+
     return alltags
 
 def countLayouts(layoutsPath: pathlib.Path) -> int:
@@ -113,9 +130,20 @@ def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
     '''Make soup from each layout in an application's layouts directory.'''
 
     apps = [ f for f in layoutsPath.iterdir() if f.is_file() ]
-    name = str(layoutsPath)
-    layouts = [ layoutSoup(f) for f in apps ]
-    return layouts, name
+    name = layoutsPath.name
+
+    layouts = []
+    errors = 0
+    for f in apps:
+        try:
+            layouts.append(layoutSoup(f))
+        except UnicodeDecodeError:
+            errors += 1
+
+    if errors != 0:
+        print("\n" + str(errors), "Unicode decode error(s) in", name)
+
+    return layouts
 
 def getRating(layoutsPath: pathlib.Path) -> (list, int):
     '''Gets a rating count and an average rating. The average rating is
@@ -229,13 +257,21 @@ def writeStats(outFile: pathlib.Path, entries: [dict]) -> None:
 
     # add other entries if already in the file
     header, oldEntries = readAndTrash(outFile)
-    entries.extend(oldEntries)
-    for d in stats:
+
+    if oldEntries is None:
+        print("Read a blank CSV file. Ignoring it.")
+    else:
+        entries.extend(oldEntries)
+
+    if header is None:
+        header = set()
+
+    for d in entries:
         header = header.union(d.keys())
 
     # write 'em all
     with outFile.open('w') as f:
-        header = sorted(header)
+        header = sorted(header) #DEBUG
         w = csv.DictWriter(f, header)
         w.writeheader()
         w.writerows(entries)
@@ -258,15 +294,30 @@ def _getArgDirs(args, log=lambda x: None) -> ("res/layouts", "res/values"):
         resourcesPath = pathlib.Path(args["VALUES"])
     return (layoutPath, resourcesPath)
 
-def _getRepoDirs(repoDir: "repo path") -> [("res/layout", "res/values"), ...]:
-    repos = list(repoDir.iterdir())
+def _getRepoDirs(repoDir: "repo path") -> [(["res/layout", ...], ["res/values", ...]), ...]:
+    repos = []
+    print("Finding applications in repository...")
+    for i, repo in enumerate(repoDir.iterdir()):
+        echo("{:4} found: {}".format(i, repo))
+        repos.append(repo)
+    print()
+
     paths = []
 
-    for repo in repos:
-        layouts = repo.glob("**/res/layout")
-        values = repo.glob("**/res/values")
+    repo_count = len(repos)
 
-    pass #TODO
+    print("Finding application layouts...")
+    for i, repo in enumerate(repos):
+        echo("{:3}% {}".format(i * 100 // repo_count, repo))
+        try:
+            layouts = list(repo.glob("**/res/layout"))
+            values = list(repo.glob("**/res/values"))
+        except OSError as e:
+            print("\nBroken app!", e.filename, str(e) + '\n')
+        paths.append((layouts, values))
+
+    print()
+    return paths
 
 def _getLogFn(args) -> ("function", "file"):
     '''Check CLI args to determine the log function.'''
@@ -282,39 +333,72 @@ def _getLogFn(args) -> ("function", "file"):
 if __name__ == "__main__":
     args = docopt(__doc__, version=VERSION)
 
+    if args["--dirlist"]:
+        import pickle
+
     # How do we want to log?
     log, f = _getLogFn(args)
 
-    # How are we getting our data?
-    if args["--repo"]:
-        dirs = _getRepoDirs(pathlib.Path(args["REPOSITORY"]))
+    if args["--dirlist"] and not args["--generate"]:
+        print("Using application layouts in", args["DIRLIST"] + ".")
+        with open(args["DIRLIST"], 'rb') as f:
+            dirs = pickle.load(f)
     else:
-        dirs = [_getArgDirs(args, log=log)]
+        # How are we getting our data?
+        if args["--repo"]:
+            dirs = _getRepoDirs(pathlib.Path(args["REPOSITORY"]))
+        else:
+            print("Finding application layouts...")
+            dirs = [_getArgDirs(args, log=log)]
+
+    if args["--dirlist"] and args["--generate"]:
+        print("Pickling to", args["DIRLIST"] + "...")
+        with open(args["DIRLIST"], 'wb') as f:
+            pickle.dump(dirs, f)
+        print("100%", str(pathlib.Path(args["DIRLIST"])))
+
+    allDirs = len(dirs)
 
     # start a list of dicts, which represent CSV rows, which represent apps
     entries = []
-    for layoutPath, resourcesPath in dirs:
+    print("Counting application layout tags...")
+    for i, pair in enumerate(dirs):
+        layoutPaths, resourcesPaths = pair
+        echo("{:3}%".format(i * 100 // allDirs))
+
+        if len(layoutPaths) == 0:
+            continue
 
         # Where are our independent variable stats coming from?
         if args["tags"]:
-            stats = countAppTags(layoutPath)
-        else:
-            log("No subcommand given; cancelling...")
-            _die(f, 1)
+            stats = countAppTags(layoutPaths)
 
-        # calculate dependent variable (evaluative metric) stats
-        ratingStats = calcRatingStats(getRating(layoutPath))
+        # calculate dependent variable (evaluative metric) stats. it doesn't
+        # matter which layoutPath we use to find the rating since they're all
+        # looking for a parent anyway
+        try:
+            ratingStats = calcRatingStats(getRating(layoutPaths[0]))
+        except IndexError:
+            try:
+                ratingStats = calcRatingStats(getRating(resourcePaths[0]))
+            except IndexError:
+                print("Can't get rating!")
+                continue
 
         # other statistics to add
-        layoutCount = { "layoutCount": countLayouts(layoutPath) }
+        layoutCount = (countLayouts(p) for p in layoutPaths)
+        layoutCount = { "layoutCount": sum(layoutCount) }
 
         entries.append(dictCombine(stats, ratingStats, layoutCount))
 
+    print()
+
     # Where are our stats going?
-    outFile = pathlib.Path(args["-o"])
+    outFile = pathlib.Path(args["CSV"])
 
-    # put all statistics in the file
+    print("Writing statistics to file...")
+    print("Entries has length", len(entries))
     writeStats(outFile, entries)
-
-    # kill files if they're open
+    print("Done. Closing open files...")
     _die(f)
+    print("Done.")
