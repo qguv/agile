@@ -130,7 +130,6 @@ def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
     '''Make soup from each layout in an application's layouts directory.'''
 
     apps = [ f for f in layoutsPath.iterdir() if f.is_file() ]
-    name = layoutsPath.name
 
     layouts = []
     errors = 0
@@ -141,7 +140,13 @@ def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
             errors += 1
 
     if errors != 0:
-        print("\n" + str(errors), "Unicode decode error(s) in", name)
+
+        if errors == 1:
+            plural = ''
+        else:
+            plural = 's'
+
+        print("\n{} Unicode decode error{} in {}".format(errors, plural, layoutsPath))
 
     return layouts
 
@@ -314,6 +319,10 @@ def _getRepoDirs(repoDir: "repo path") -> [(["res/layout", ...], ["res/values", 
             values = list(repo.glob("**/res/values"))
         except OSError as e:
             print("\nBroken app!", e.filename, str(e) + '\n')
+            continue
+
+        layouts = [ l for l in layouts if ".hg" not in l.parts ]
+        values = [ l for l in values if ".hg" not in l.parts ]
         paths.append((layouts, values))
 
     print()
@@ -396,8 +405,7 @@ if __name__ == "__main__":
     # Where are our stats going?
     outFile = pathlib.Path(args["CSV"])
 
-    print("Writing statistics to file...")
-    print("Entries has length", len(entries))
+    print("Writing {} entries to file...".format(len(entries)))
     writeStats(outFile, entries)
     print("Done. Closing open files...")
     _die(f)
