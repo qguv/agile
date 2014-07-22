@@ -362,6 +362,12 @@ if __name__ == "__main__":
         if len(layoutPaths) == 0:
             continue
 
+        # get the number of individual layouts defined
+        layoutCount = (countLayouts(p) for p in layoutPaths)
+        if layoutCount == 0:
+            continue
+        layoutCount = { "layoutCount": sum(layoutCount) }
+
         # Do we want app-defined tags?
         custom = not args["--builtin"]
 
@@ -380,10 +386,6 @@ if __name__ == "__main__":
             except IndexError:
                 print("Can't get rating!")
                 continue
-
-        # other statistics to add
-        layoutCount = (countLayouts(p) for p in layoutPaths)
-        layoutCount = { "layoutCount": sum(layoutCount) }
 
         entries.append(dictCombine(stats, ratingStats, layoutCount))
 
