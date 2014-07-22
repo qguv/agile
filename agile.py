@@ -37,9 +37,11 @@ import csv
 import os
 from itertools import chain
 from subprocess import check_call
+import json
 
 from bs4 import BeautifulSoup
 bs = lambda x: BeautifulSoup(x, "xml")
+
 
 def echo(x):
     space = (len(x) - 80) * " "
@@ -154,7 +156,7 @@ def appSoup(layoutsPath: pathlib.Path) -> ["soup", ...]:
 
     return layouts
 
-def getRating(layoutsPath: pathlib.Path) -> (list, int):
+def readRatingStats(layoutsPath: pathlib.Path) -> (list, int):
     '''Gets a rating count and an average rating. The average rating is
     returned as element [0], and the star counts are returned as their
     respective elements, 1 to and including 5.'''
@@ -162,29 +164,16 @@ def getRating(layoutsPath: pathlib.Path) -> (list, int):
     p = layoutsPath.resolve()
     root = layoutsPath.parts[0]
 
-    while "rating.txt" not in [ f.name for f in p.iterdir() ]:
+    while "rating.json" not in [ f.name for f in p.iterdir() ]:
         parent = p.parent
         if p == parent:
             raise FileNotFoundError
         p = parent
 
-    p = p / "rating.txt"
-    out = [0] * 6
+    p = p / "rating.json"
 
     with p.open('r') as f:
-
-        # ratings
-        for i in range(1, 6):
-            out[i] = int(f.readline().strip())
-
-        # checking against total
-        if int(f.readline().strip()) != sum(out):
-            raise ValueError("rating.txt reports wrong total value")
-
-        # average
-        out[0] = float(f.readline())
-
-    return out
+        return json.load(f)
 
 def emptyStats() -> dict:
     stats = {
@@ -217,19 +206,6 @@ def calcStats(vector: list) -> dict:
             stats[k] = fn(vector)
         except statistics.StatisticsError:
             stats[k] = "NA"
-
-    return stats
-
-def calcRatingStats(ratings: list) -> dict:
-
-    mean = ratings[0]
-    ratings = ratings[1:]
-
-    # plain ratings
-    stats = { "star_{}".format(i + 1): r for i, r in enumerate(ratings) }
-
-    # the mean
-    stats["star_mean"] = mean
 
     return stats
 
@@ -378,7 +354,7 @@ if __name__ == "__main__":
 
     # start a list of dicts, which represent CSV rows, which represent apps
     entries = []
-    print("Counting application layout tags...")
+    print("Analyzing application layout tags...")
     for i, pair in enumerate(dirs):
         layoutPaths, resourcesPaths = pair
         echo("{:3}%".format(i * 100 // allDirs))
@@ -397,10 +373,10 @@ if __name__ == "__main__":
         # matter which layoutPath we use to find the rating since they're all
         # looking for a parent anyway
         try:
-            ratingStats = calcRatingStats(getRating(layoutPaths[0]))
+            ratingStats = readRatingStats(layoutPaths[0])
         except IndexError:
             try:
-                ratingStats = calcRatingStats(getRating(resourcePaths[0]))
+                ratingStats = readRatingStats(resourcePaths[0])
             except IndexError:
                 print("Can't get rating!")
                 continue
