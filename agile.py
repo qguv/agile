@@ -215,7 +215,7 @@ def readAndTrash(inFile: pathlib.Path) -> (set, [dict, ...]):
 
     # no file, no entries
     if not inFile.exists():
-        return (None, None)
+        raise FileNotFoundError
 
     with inFile.open('r') as f:
         r = csv.DictReader(f)
@@ -241,12 +241,12 @@ def dictCombine(*dictionaries) -> dict:
 def writeStats(outFile: pathlib.Path, entries: [dict], *, zeros=False) -> None:
 
     # add other entries if already in the file
-    header, oldEntries = readAndTrash(outFile)
-
-    if oldEntries is None:
-        print("Read a blank CSV file. Ignoring it.")
-    else:
+    try:
+        header, oldEntries = readAndTrash(outFile)
+        print("Appending data to current CSV file...")
         entries.extend(oldEntries)
+    except FileNotFoundError:
+        print("Creating new CSV file...")
 
     if header is None:
         header = set()
