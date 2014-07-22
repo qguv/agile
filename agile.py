@@ -4,7 +4,7 @@
 
 Usage:
   agile.py tags [options] (-o CSV) LAYOUTS [--values VALUES]
-  agile.py tags [options] (-o CSV) (--repo REPOSITORY) (--dirlist DIRLIST [--generate])
+  agile.py tags [options] (-o CSV) (--repo REPOSITORY) [--dirlist DIRLIST]
   agile.py (-h | --help | help)
   agile.py --version
 
@@ -16,9 +16,11 @@ Arguments:
   DIRLIST     Path to the output of getRepoDirs or getArgDirs.
 
 Options:
-  tags        Count tags.
-  -l LOGFILE  Log output to a file.
+  tags        Analyze tags and run counts for each application.
+  --builtin   Only analyze stock Android tags (not app-defined tags).
+  --zeros     In the absence of data, put 0 in the CSV.
   --generate  Actually run getRepoDirs or getArgDirs and save it to DIRLIST.
+  -l LOGFILE  Log output to a file.
   -v          Increase verbosity.
   -h --help   Show this screen.
   --version   Display version.
@@ -55,17 +57,19 @@ def countLayoutButtons(soup: "soup from an XML layout") -> int:
     '''Count how many buttons are defined in a layout.'''
     return len(soup("Button"))
 
-def countTags(soup: "soup from an XML layout") -> dict:
+def countTags(soup: "soup from an XML layout", *, custom=True) -> dict:
     '''Return a dictionary listing the freqency of each tag type by name.'''
 
     tagCount = dict()
 
-    tags = soup.find_all(True) #TODO
+    tags = soup.find_all(True)  # TODO
 
     for tag in tags:
         # increase int by one
         name = tag.name
         if tag.name is None:
+            continue
+        if not custom and '.' in tag.name:
             continue
         key = "tag_{}".format(name)
 
@@ -81,7 +85,7 @@ def countAppButtons(layoutsPath: pathlib.Path) -> [int, ...]:
     layouts, _ = appSoup(layoutsPath)
     return [ countLayoutButtons(soup) for soup in layouts ]
 
-def countAppTags(layoutsPaths: [pathlib.Path, ...]) -> dict:
+def countAppTags(layoutsPaths: [pathlib.Path, ...], *, custom=True) -> dict:
     '''Returns a combined tag frequency dictionary for all layouts in an
     application's layouts directory.'''
 
@@ -95,7 +99,7 @@ def countAppTags(layoutsPaths: [pathlib.Path, ...]) -> dict:
 
         # we can get a dictionary of tags in each layout with countTags
         # we'll make a running total of each in the "alltags" dictionary
-        newtags = countTags(soup)
+        newtags = countTags(soup, custom=custom)
 
         # combine all dictionaries in all layouts
 
@@ -258,7 +262,7 @@ def dictCombine(*dictionaries) -> dict:
     dItems = ( d.items() for d in dictionaries )
     return dict(chain(*dItems))
 
-def writeStats(outFile: pathlib.Path, entries: [dict]) -> None:
+def writeStats(outFile: pathlib.Path, entries: [dict], *, zeros=False) -> None:
 
     # add other entries if already in the file
     header, oldEntries = readAndTrash(outFile)
@@ -274,9 +278,13 @@ def writeStats(outFile: pathlib.Path, entries: [dict]) -> None:
     for d in entries:
         header = header.union(d.keys())
 
+    # set empty values to zero if requested
+    if zeros:
+        entries = [ { h: d.get(h, 0) for h in header } for d in entries ]
+
     # write 'em all
     with outFile.open('w') as f:
-        header = sorted(header) #DEBUG
+        header = sorted(header)  # DEBUG
         w = csv.DictWriter(f, header)
         w.writeheader()
         w.writerows(entries)
@@ -378,9 +386,12 @@ if __name__ == "__main__":
         if len(layoutPaths) == 0:
             continue
 
+        # Do we want app-defined tags?
+        custom = not args["--builtin"]
+
         # Where are our independent variable stats coming from?
         if args["tags"]:
-            stats = countAppTags(layoutPaths)
+            stats = countAppTags(layoutPaths, custom=custom)
 
         # calculate dependent variable (evaluative metric) stats. it doesn't
         # matter which layoutPath we use to find the rating since they're all
@@ -406,7 +417,7 @@ if __name__ == "__main__":
     outFile = pathlib.Path(args["CSV"])
 
     print("Writing {} entries to file...".format(len(entries)))
-    writeStats(outFile, entries)
+    writeStats(outFile, entries, zeros=args["--zeros"])
     print("Done. Closing open files...")
     _die(f)
     print("Done.")
