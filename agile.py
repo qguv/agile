@@ -17,9 +17,9 @@ Arguments:
 
 Options:
   tags        Analyze tags and run counts for each application.
-  --builtin   Only analyze stock Android tags (not app-defined tags).
-  --zeros     In the absence of data, put 0 in the CSV.
-  --generate  Actually run getRepoDirs or getArgDirs and save it to DIRLIST.
+  --custom    Also analyze app-defined tags (not just stock Android tags).
+  --blanks    In the absence of data, put nothing (instead of a zero) in the CSV.
+  --cache     Write to (rather than read from) DIRLIST.
   -l LOGFILE  Log output to a file.
   -v          Increase verbosity.
   -h --help   Show this screen.
@@ -332,7 +332,7 @@ if __name__ == "__main__":
     # How do we want to log?
     log, f = _getLogFn(args)
 
-    if args["--dirlist"] and not args["--generate"]:
+    if args["--dirlist"] and not args["--cache"]:
         print("Using application layouts in", args["DIRLIST"] + ".")
         with open(args["DIRLIST"], 'rb') as f:
             dirs = pickle.load(f)
@@ -344,7 +344,7 @@ if __name__ == "__main__":
             print("Finding application layouts...")
             dirs = [_getArgDirs(args, log=log)]
 
-    if args["--dirlist"] and args["--generate"]:
+    if args["--dirlist"] and args["--cache"]:
         print("Pickling to", args["DIRLIST"] + "...")
         with open(args["DIRLIST"], 'wb') as f:
             pickle.dump(dirs, f)
@@ -368,12 +368,9 @@ if __name__ == "__main__":
             continue
         layoutCount = { "layoutCount": sum(layoutCount) }
 
-        # Do we want app-defined tags?
-        custom = not args["--builtin"]
-
         # Where are our independent variable stats coming from?
         if args["tags"]:
-            stats = countAppTags(layoutPaths, custom=custom)
+            stats = countAppTags(layoutPaths, custom=args["--custom"])
 
         # calculate dependent variable (evaluative metric) stats. it doesn't
         # matter which layoutPath we use to find the rating since they're all
@@ -394,8 +391,11 @@ if __name__ == "__main__":
     # Where are our stats going?
     outFile = pathlib.Path(args["CSV"])
 
+    # Do we want zeros or blanks in our output file?
+    zeros = not args["--blanks"]
+
     print("Writing {} entries to file...".format(len(entries)))
-    writeStats(outFile, entries, zeros=args["--zeros"])
+    writeStats(outFile, entries, zeros=zeros)
     print("Done. Closing open files...")
     _die(f)
     print("Done.")
