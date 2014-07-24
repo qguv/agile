@@ -247,6 +247,7 @@ def writeStats(outFile: pathlib.Path, entries: [dict], *, zeros=False) -> None:
         entries.extend(oldEntries)
     except FileNotFoundError:
         print("Creating new CSV file...")
+        header = set()
 
     if header is None:
         header = set()
