@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-"""agile, the Android Graphical Interface LExer
+"""aguille, the Android Graphical User Interface Lazy LExer
 
 Usage:
-  agile.py tags [options] (-o CSV) LAYOUTS [--values VALUES]
-  agile.py tags [options] (-o CSV) (--repo REPOSITORY) [--dirlist DIRLIST]
-  agile.py (-h | --help | help)
-  agile.py --version
+  aguille.py tags [options] (-o CSV) LAYOUTS [--values VALUES]
+  aguille.py tags [options] (-o CSV) (--repo REPOSITORY) [--dirlist DIRLIST]
+  aguille.py (-h | --help | help)
+  aguille.py --version
 
 Arguments:
   CSV         Path to output CSV.
@@ -25,7 +25,7 @@ Options:
   -h --help   Show this screen.
   --version   Display version.
 
-agile is written by Quint Guvernator and licensed by the GPLv3."""
+aguille is written by Quint Guvernator and licensed by the GPLv3."""
 
 VERSION = "indev"
 
